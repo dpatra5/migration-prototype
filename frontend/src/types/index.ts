@@ -1,4 +1,10 @@
-export type JobStatus = "Done" | "Partial" | "Running" | "Pending" | "Failed" | "Revoked";
+export type JobStatus =
+  | "Done"
+  | "Partial"
+  | "Running"
+  | "Pending"
+  | "Failed"
+  | "Revoked";
 
 export const JobStatusValues = {
   Done: "Done" as const,
@@ -28,6 +34,26 @@ export interface MigrationMetrics {
   success: number;
   failed: number;
   unclassified: number;
+}
+
+export type NotificationType = "success" | "error" | "warning" | "info";
+
+export type MigrationNotificationStatus =
+  | "in-progress"
+  | "completed"
+  | "partial"
+  | "failed"
+  | "revoked";
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+  jobId?: string;
+  migrationStatus?: MigrationNotificationStatus;
 }
 
 export type ModalType =
