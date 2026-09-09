@@ -41,8 +41,6 @@ interface DashboardProps {
   onSignOut: () => void;
 }
 
-export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onSignOut }: DashboardProps) {
-
 const initialNotifications: AppNotification[] = [
   {
     id: "N-001",
@@ -180,7 +178,7 @@ const toastStyle: Record<
   },
 };
 
-export function Dashboard() {
+export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onSignOut }: DashboardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<AppPage>(accessConfig[currentRole].pages[0]);
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
