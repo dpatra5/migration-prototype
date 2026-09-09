@@ -253,8 +253,8 @@ export function Dashboard() {
       nextJobNumber.current += 1;
       const migration = {
         id: jobId,
-        startedAt: now.getTime(),
         ...migrationDetails,
+        startedAt: now.getTime(),
       };
       const notificationId = `N-${Date.now()}`;
       const startedNotification: AppNotification = {
@@ -459,7 +459,7 @@ export function Dashboard() {
             </button>
             <p className="text-sm text-gray-300">
               Welcome back,{" "}
-              <span className="font-semibold text-white">Rakesh bishoyi</span>
+              <span className="font-semibold text-white">Sahil Dey</span>
             </p>
           </div>
         </div>

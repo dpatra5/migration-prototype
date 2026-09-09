@@ -20,10 +20,10 @@ export default function CircularProgress({
 
   return (
     <div className="flex justify-center">
-      <div className="relative w-44 h-44 float-ring">
+      <div className="relative w-56 h-56 float-ring">
         {/* <div className="absolute -inset-2 animate-spin-slow rounded-full border border-cyan-400/20" /> */}
         <svg
-          className="w-44 h-44 -rotate-90 relative z-10 pulse-glow"
+  className="w-56 h-56 -rotate-90 relative z-10 pulse-glow"
           viewBox="0 0 100 100"
         >
           {/* Background circle */}
@@ -32,7 +32,7 @@ export default function CircularProgress({
             cy="50"
             r={radius}
             stroke="#e5e7eb"
-            strokeWidth="10"
+            strokeWidth="7"
             fill="none"
           />
 
@@ -41,33 +41,30 @@ export default function CircularProgress({
             cx="50"
             cy="50"
             r={radius}
-            stroke="url(#gradient)"
-            strokeWidth="8"
+            stroke="url(#progressGradient)"
+            strokeWidth="6"
             fill="none"
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             style={{
-              transition:
-                "stroke-dashoffset 0.3s ease",
-              filter:
-                "drop-shadow(0 2px 6px rgba(37,99,235,.15))"
-            }}
+  transition: "stroke-dashoffset 0.3s ease",
+  filter: "drop-shadow(0 0 10px rgba(59,130,246,.25))"
+}}
           />
 
           <defs>
             <linearGradient
-            id="gradient"
-            x1="0%"
-            y1="50%"
-            x2="100%"
-            y2="50%"
-            >
-            <stop offset="0%" stopColor="#2563eb" />
-            <stop offset="45%" stopColor="#3b82f6" />
-            <stop offset="75%" stopColor="#f59e0b" />
-            <stop offset="100%" stopColor="#f97316" />
-            </linearGradient>
+  id="progressGradient"
+  x1="0%"
+  y1="0%"
+  x2="100%"
+  y2="100%"
+>
+  <stop offset="0%" stopColor="#93C5FD" />
+  <stop offset="50%" stopColor="#3B82F6" />
+  <stop offset="100%" stopColor="#1D4ED8" />
+</linearGradient>
           </defs>
         </svg>
 
@@ -77,13 +74,13 @@ export default function CircularProgress({
     {Math.round(progress)}%
   </p>
 
-  <p className="text-sm text-gray-500">
-    {successfulFiles} / {totalFiles}
-  </p>
+  <p className="text-base font-semibold text-blue-600">
+  {successfulFiles} / {totalFiles}
+</p>
 
-  <p className="text-xs text-gray-400">
-    Files Migrated
-  </p>
+  <p className="text-xs uppercase tracking-wider text-gray-400">
+  Files Migrated
+</p>
 
   <p className="mt-2 text-xs font-medium text-rose-600">
     {failedFiles} Failed
