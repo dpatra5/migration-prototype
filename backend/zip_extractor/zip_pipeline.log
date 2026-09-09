@@ -1,0 +1,10 @@
+2026-09-09 16:46:45 | INFO    | zip_pipeline | Starting ZIP pipeline scheduler (interval=120 min, source=C:\Users\ADas155\QuIn\POC\Source)
+2026-09-09 16:46:45 | INFO    | zip_pipeline | Scanning source folder: C:\Users\ADas155\QuIn\POC\Source
+2026-09-09 16:46:47 | INFO    | zip_pipeline | ZIP detected: PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze.zip
+2026-09-09 16:46:49 | INFO    | zip_pipeline | Extraction started: PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze.zip -> C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze
+2026-09-09 16:46:52 | INFO    | zip_pipeline | Extraction completed: PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze.zip
+2026-09-09 16:46:53 | INFO    | zip_pipeline | Nested ZIP extraction started: C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\SMF_CERES.zip
+2026-09-09 16:46:56 | INFO    | zip_pipeline | Nested ZIP extraction completed: C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\SMF_CERES.zip
+2026-09-09 16:47:00 | INFO    | zip_pipeline | Nested ZIP extraction started: C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\TMF_CERES.zip
+2026-09-09 16:47:06 | INFO    | zip_pipeline | Nested ZIP extraction completed: C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\TMF_CERES.zip
+2026-09-09 16:47:06 | INFO    | zip_pipeline | Archive completed: PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze.zip -> C:\Users\ADas155\QuIn\POC\Archive\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze.zip
