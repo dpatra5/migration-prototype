@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { canAccessPage, type AccessControlConfig, type AppPage, type Role } from "../accessControl";
 import { mockMetrics, mockJobs } from "../data/mockData";
 import {
   JobStatusValues,
@@ -22,55 +23,23 @@ import { NotificationsPage } from "./NotificationsPage";
 import { SettingsPage } from "./SettingsPage";
 import { BellIcon } from "./icons/BellIcon";
 
-const menuItems: {
-  label: string;
-  icon: string;
-  activeBg: string;
-  activeBorder: string;
-}[] = [
-  {
-    label: "Dashboard",
-    icon: "📊",
-    activeBg: "bg-blue-600/20",
-    activeBorder: "border-blue-500",
-  },
-  {
-    label: "Upload",
-    icon: "⬆️",
-    activeBg: "bg-emerald-600/20",
-    activeBorder: "border-emerald-500",
-  },
-  {
-    label: "Mapping",
-    icon: "🗺️",
-    activeBg: "bg-purple-600/20",
-    activeBorder: "border-purple-500",
-  },
-  {
-    label: "Review",
-    icon: "👁️",
-    activeBg: "bg-amber-600/20",
-    activeBorder: "border-amber-500",
-  },
-  {
-    label: "Unclassified Docs",
-    icon: "📄",
-    activeBg: "bg-orange-600/20",
-    activeBorder: "border-orange-500",
-  },
-  {
-    label: "Audit Trail",
-    icon: "🔍",
-    activeBg: "bg-indigo-600/20",
-    activeBorder: "border-indigo-500",
-  },
-  {
-    label: "Settings",
-    icon: "⚙️",
-    activeBg: "bg-slate-600/20",
-    activeBorder: "border-slate-500",
-  },
+const menuItems: { label: AppPage; icon: string; activeBg: string; activeBorder: string }[] = [
+  { label: "Dashboard",         icon: "📊", activeBg: "bg-blue-600/20",    activeBorder: "border-blue-500" },
+  { label: "Upload",            icon: "⬆️",  activeBg: "bg-emerald-600/20", activeBorder: "border-emerald-500" },
+  { label: "Mapping",           icon: "🗺️", activeBg: "bg-purple-600/20",  activeBorder: "border-purple-500" },
+  { label: "Review",            icon: "👁️",  activeBg: "bg-amber-600/20",   activeBorder: "border-amber-500" },
+  { label: "Unclassified Docs", icon: "📄", activeBg: "bg-orange-600/20",  activeBorder: "border-orange-500" },
+  { label: "Audit Trail",       icon: "🔍", activeBg: "bg-indigo-600/20",  activeBorder: "border-indigo-500" },
+  { label: "Notifications",     icon: "🔔", activeBg: "bg-pink-600/20",    activeBorder: "border-pink-500" },
+  { label: "Settings",          icon: "⚙️",  activeBg: "bg-slate-600/20",   activeBorder: "border-slate-500" },
 ];
+
+interface DashboardProps {
+  currentRole: Role;
+  accessConfig: AccessControlConfig;
+  onAccessConfigChange: (config: AccessControlConfig) => void;
+  onSignOut: () => void;
+}
 
 const initialNotifications: AppNotification[] = [
   {
@@ -209,9 +178,9 @@ const toastStyle: Record<
   },
 };
 
-export function Dashboard() {
+export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onSignOut }: DashboardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState("Dashboard");
+  const [activeItem, setActiveItem] = useState<AppPage>(accessConfig[currentRole].pages[0]);
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
   const [searchTerm, setSearchTerm] = useState("");
   const [notifications, setNotifications] =
@@ -393,6 +362,14 @@ export function Dashboard() {
     [activeMigration, updateJobStatus, updateMigrationNotification],
   );
 
+  const availableMenuItems = menuItems.filter((item) => canAccessPage(accessConfig, currentRole, item.label));
+
+  useEffect(() => {
+    if (!canAccessPage(accessConfig, currentRole, activeItem)) {
+      setActiveItem(accessConfig[currentRole].pages[0]);
+    }
+  }, [accessConfig, activeItem, currentRole]);
+
   return (
     <div className="h-screen bg-gray-50 text-gray-900 flex flex-col overflow-hidden">
       {/* Header */}
@@ -462,6 +439,10 @@ export function Dashboard() {
               <span className="font-semibold text-white">Sahil Dey</span>
             </p>
           </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-300">{accessConfig[currentRole].label}</span>
+            <button type="button" onClick={onSignOut} className="rounded-md border border-gray-700 px-2 py-1 text-xs font-semibold text-gray-200 hover:bg-gray-800">Sign out</button>
+          </div>
         </div>
       </header>
 
@@ -474,7 +455,7 @@ export function Dashboard() {
           }`}
         >
           <nav className="flex flex-col py-2 w-52">
-            {menuItems.map((item) => {
+            {availableMenuItems.map((item) => {
               const isActive = activeItem === item.label;
               return (
                 <button
@@ -616,7 +597,7 @@ export function Dashboard() {
             />
           )}
 
-          {activeItem === "Settings" && <SettingsPage />}
+          {activeItem === "Settings" && <SettingsPage currentRole={currentRole} accessConfig={accessConfig} onAccessConfigChange={onAccessConfigChange} />}
         </main>
       </div>
     </div>
