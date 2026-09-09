@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { canAccessPage, type AccessControlConfig, type AppPage, type Role } from "../accessControl";
 import { mockMetrics, mockJobs } from "../data/mockData";
 import { JobStatusValues, type Job } from "../types/index";
 import { MetricsOverview } from "./MetricsOverview";
@@ -12,7 +13,7 @@ import { AuditTrailPage } from "./AuditTrailPage";
 import { NotificationsPage } from "./NotificationsPage";
 import { SettingsPage } from "./SettingsPage";
 
-const menuItems: { label: string; icon: string; activeBg: string; activeBorder: string }[] = [
+const menuItems: { label: AppPage; icon: string; activeBg: string; activeBorder: string }[] = [
   { label: "Dashboard",         icon: "📊", activeBg: "bg-blue-600/20",    activeBorder: "border-blue-500" },
   { label: "Upload",            icon: "⬆️",  activeBg: "bg-emerald-600/20", activeBorder: "border-emerald-500" },
   { label: "Mapping",           icon: "🗺️", activeBg: "bg-purple-600/20",  activeBorder: "border-purple-500" },
@@ -23,9 +24,16 @@ const menuItems: { label: string; icon: string; activeBg: string; activeBorder: 
   { label: "Settings",          icon: "⚙️",  activeBg: "bg-slate-600/20",   activeBorder: "border-slate-500" },
 ];
 
-export function Dashboard() {
+interface DashboardProps {
+  currentRole: Role;
+  accessConfig: AccessControlConfig;
+  onAccessConfigChange: (config: AccessControlConfig) => void;
+  onSignOut: () => void;
+}
+
+export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onSignOut }: DashboardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState("Dashboard");
+  const [activeItem, setActiveItem] = useState<AppPage>(accessConfig[currentRole].pages[0]);
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
   const [activeMigration, setActiveMigration] = useState<ScheduledMigration | null>(null);
   const nextJobNumber = useRef(105);
@@ -59,6 +67,14 @@ export function Dashboard() {
     updateJobStatus(jobId, JobStatusValues.Revoked);
   }, [activeMigration, updateJobStatus]);
 
+  const availableMenuItems = menuItems.filter((item) => canAccessPage(accessConfig, currentRole, item.label));
+
+  useEffect(() => {
+    if (!canAccessPage(accessConfig, currentRole, activeItem)) {
+      setActiveItem(accessConfig[currentRole].pages[0]);
+    }
+  }, [accessConfig, activeItem, currentRole]);
+
   return (
     <div className="h-screen bg-gray-50 text-gray-900 flex flex-col overflow-hidden">
       {/* Header */}
@@ -82,9 +98,10 @@ export function Dashboard() {
             </button>
             <h1 className="text-base font-bold text-white">Migration Utility</h1>
           </div>
-          <p className="text-sm text-gray-300">
-            Welcome back, <span className="font-semibold text-white">Debabrata</span>
-          </p>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-300">{accessConfig[currentRole].label}</span>
+            <button type="button" onClick={onSignOut} className="rounded-md border border-gray-700 px-2 py-1 text-xs font-semibold text-gray-200 hover:bg-gray-800">Sign out</button>
+          </div>
         </div>
       </header>
 
@@ -97,7 +114,7 @@ export function Dashboard() {
           }`}
         >
           <nav className="flex flex-col py-2 w-52">
-            {menuItems.map((item) => {
+            {availableMenuItems.map((item) => {
               const isActive = activeItem === item.label;
               return (
                 <button
@@ -166,7 +183,7 @@ export function Dashboard() {
 
           {activeItem === "Notifications" && <NotificationsPage />}
 
-          {activeItem === "Settings" && <SettingsPage />}
+          {activeItem === "Settings" && <SettingsPage currentRole={currentRole} accessConfig={accessConfig} onAccessConfigChange={onAccessConfigChange} />}
         </main>
       </div>
     </div>
