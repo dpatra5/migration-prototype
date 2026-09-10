@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { canAccessPage, type AccessControlConfig, type AppPage, type Role } from "../accessControl";
-import { mockMetrics, mockJobs } from "../data/mockData";
+import { mockMetrics, mockMetricsByYear, mockMetricsByMonth, mockJobs } from "../data/mockData";
 import {
   JobStatusValues,
   type AppNotification,
@@ -10,10 +10,10 @@ import {
 import { MetricsOverview } from "./MetricsOverview";
 import { RecentJobsTable } from "./RecentJobsTable";
 import {
-  AutomaticJobScheduler,
+  MigrationProgressPanel,
   type SchedulerPhase,
   type ScheduledMigration,
-} from "./AutomaticJobScheduler";
+} from "./MigrationProgressPanel";
 import { UploadPage } from "./UploadPage";
 import { MappingPage } from "./MappingPage";
 import { ReviewPage } from "./ReviewPage";
@@ -201,13 +201,14 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
   ).length;
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const bellBadgeCount = formatBellBadgeCount(unreadNotificationCount);
+  const recentJobs = jobs.slice(0, 10);
   const filteredJobs = normalizedSearch
-    ? jobs.filter(
+    ? recentJobs.filter(
         (job) =>
           job.id.toLowerCase().includes(normalizedSearch) ||
           job.study.toLowerCase().includes(normalizedSearch),
       )
-    : jobs;
+    : recentJobs;
 
   const updateJobStatus = useCallback(
     (jobId: string, status: Job["status"]) => {
@@ -337,6 +338,31 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
     [],
   );
 
+  const handleMigrationComplete = useCallback(
+    (jobId: string) => {
+      setMigrationPhase("complete");
+      updateJobStatus(jobId, JobStatusValues.Partial);
+      updateMigrationNotification(
+        jobId,
+        "partial",
+        "warning",
+        `Migration ${jobId} Partial`,
+        `Migration ${jobId} completed with partial success. Some files require review.`,
+      );
+      setToastNotification({
+        id: `N-${Date.now()}`,
+        type: "success",
+        title: `Migration ${jobId} Completed`,
+        message: `Migration ${jobId} finished successfully. 114 of 120 files migrated; 6 files need review.`,
+        time: formatNotificationTime(new Date()),
+        read: false,
+        jobId,
+        migrationStatus: "partial",
+      });
+    },
+    [updateJobStatus, updateMigrationNotification],
+  );
+
   const revokeJob = useCallback(
     (jobId: string) => {
       if (activeMigration?.id === jobId) {
@@ -363,6 +389,20 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
       );
     },
     [activeMigration, updateJobStatus, updateMigrationNotification],
+  );
+
+  const retryJob = useCallback(
+    (jobId: string) => {
+      updateJobStatus(jobId, JobStatusValues.Running);
+      updateMigrationNotification(
+        jobId,
+        "in-progress",
+        "info",
+        `Migration ${jobId} Retried`,
+        `Migration ${jobId} has been retried and is now in progress.`,
+      );
+    },
+    [updateJobStatus, updateMigrationNotification],
   );
 
   const availableMenuItems = menuItems.filter((item) => canAccessPage(accessConfig, currentRole, item.label));
@@ -506,48 +546,21 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
                 <p className="text-gray-500 text-sm mb-4">
                   Real-time migration statistics
                 </p>
-                <MetricsOverview metrics={mockMetrics} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+                  <MetricsOverview
+                    metrics={mockMetrics}
+                    metricsByYear={mockMetricsByYear}
+                    metricsByMonth={mockMetricsByMonth}
+                  />
+                  <MigrationProgressPanel
+                    jobs={jobs}
+                    activeMigration={activeMigration}
+                    migrationPhase={migrationPhase}
+                    onJobComplete={handleMigrationComplete}
+                    onRevoke={revokeJob}
+                  />
+                </div>
               </section>
-
-              {activeMigration && (
-                <AutomaticJobScheduler
-                  key={activeMigration.id}
-                  migration={activeMigration}
-                  phase={migrationPhase}
-                  onJobComplete={(jobId) => {
-                    setMigrationPhase("complete");
-                    updateJobStatus(jobId, JobStatusValues.Partial);
-                    updateMigrationNotification(
-                      jobId,
-                      "partial",
-                      "warning",
-                      `Migration ${jobId} Partial`,
-                      `Migration ${jobId} completed with partial success. Some files require review.`,
-                    );
-                    setToastNotification({
-                      id: `N-${Date.now()}`,
-                      type: "success",
-                      title: `Migration ${jobId} Completed`,
-                      message: `Migration ${jobId} finished successfully. 114 of 120 files migrated; 6 files need review.`,
-                      time: formatNotificationTime(new Date()),
-                      read: false,
-                      jobId,
-                      migrationStatus: "partial",
-                    });
-                  }}
-                  onJobRevoked={(jobId) => {
-                    setMigrationPhase("revoked");
-                    updateJobStatus(jobId, JobStatusValues.Pending);
-                    updateMigrationNotification(
-                      jobId,
-                      "revoked",
-                      "warning",
-                      `Migration ${jobId} Revoked`,
-                      `Migration ${jobId} was revoked and moved to pending state.`,
-                    );
-                  }}
-                />
-              )}
 
               <section>
                 <div className="flex items-center justify-between mb-3">
@@ -570,7 +583,7 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
                     View Full Audit Trail →
                   </button>
                 </div>
-                <RecentJobsTable jobs={filteredJobs} onRevoke={revokeJob} />
+                <RecentJobsTable jobs={filteredJobs} onRevoke={revokeJob} onRetry={retryJob} />
               </section>
             </div>
           )}

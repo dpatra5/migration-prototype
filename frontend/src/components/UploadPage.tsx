@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ScheduledMigration } from "./AutomaticJobScheduler";
+import type { ScheduledMigration } from "./MigrationProgressPanel";
 
 type DestinationTemplate = {
   study: string;
@@ -27,7 +27,7 @@ type UploadPageProps = {
 
 export function UploadPage({ onStartMigration }: UploadPageProps) {
   const [source, setSource] = useState<"inbox" | "manual">("inbox");
-  const [study, setStudy] = useState("");
+  const [study, setStudy] = useState("STUDY-A");
   const [country, setCountry] = useState("");
   const [cro, setCro] = useState("");
   const [documentType, setDocumentType] = useState("Protocol");
