@@ -10,6 +10,8 @@ venv/
 *.db
 *.sqlite
 *.sqlite3
+*.log
+zip_pipeline.log
 .env
 .env.*
 
