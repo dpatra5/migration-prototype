@@ -4,9 +4,51 @@ import { JobStatusValues } from "../types/index";
 export const mockMetrics: MigrationMetrics = {
   total: 1245,
   success: 1180,
-  failed: 23,
-  unclassified: 42,
+  failed: 95,
+  unclassified: 130,
+  studies: 18,
+  countries: 9,
+  sites: 27,
 };
+
+const metricsHistoryYears = ["2024", "2025", "2026"];
+const metricsHistoryMonths = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function buildMetricsForSeed(seed: number): MigrationMetrics {
+  const total = 640 + seed * 31;
+  const failed = 18 + (seed % 5) * 14;
+  const unclassified = 12 + (seed % 4) * 18;
+  const success = total - failed - unclassified;
+  const studies = 4 + (seed % 6) * 2;
+  const countries = 2 + (seed % 4);
+  const sites = 6 + (seed % 5) * 3;
+  return { total, success, failed, unclassified, studies, countries, sites };
+}
+
+export const mockMetricsByYear: Record<string, MigrationMetrics> = metricsHistoryYears.reduce(
+  (acc, year, index) => {
+    acc[year] = buildMetricsForSeed(index * 12 + 6);
+    return acc;
+  },
+  {} as Record<string, MigrationMetrics>,
+);
+
+export const mockMetricsByMonth: Record<string, Record<string, MigrationMetrics>> = metricsHistoryYears.reduce(
+  (acc, year, yearIndex) => {
+    acc[year] = metricsHistoryMonths.reduce(
+      (monthAcc, month, monthIndex) => {
+        monthAcc[month] = buildMetricsForSeed(yearIndex * 12 + monthIndex);
+        return monthAcc;
+      },
+      {} as Record<string, MigrationMetrics>,
+    );
+    return acc;
+  },
+  {} as Record<string, Record<string, MigrationMetrics>>,
+);
 
 export const mockJobs: Job[] = [
   {
@@ -15,6 +57,9 @@ export const mockJobs: Job[] = [
     status: JobStatusValues.Done,
     date: "17-Aug",
     assignedBy: "Abakash",
+    totalFiles: 80,
+    successfulFiles: 80,
+    failedFiles: 0,
   },
   {
     id: "J-102",
@@ -22,6 +67,9 @@ export const mockJobs: Job[] = [
     status: JobStatusValues.Partial,
     date: "17-Aug",
     assignedBy: "Ravi",
+    totalFiles: 65,
+    successfulFiles: 60,
+    failedFiles: 5,
   },
   {
     id: "J-103",
@@ -29,6 +77,9 @@ export const mockJobs: Job[] = [
     status: JobStatusValues.Running,
     date: "18-Aug",
     assignedBy: "Rakesh",
+    totalFiles: 60,
+    successfulFiles: 36,
+    failedFiles: 3,
   },
   {
     id: "J-104",
@@ -36,6 +87,9 @@ export const mockJobs: Job[] = [
     status: JobStatusValues.Failed,
     date: "18-Aug",
     assignedBy: "Sahil",
+    totalFiles: 25,
+    successfulFiles: 5,
+    failedFiles: 20,
   },
 ];
 
