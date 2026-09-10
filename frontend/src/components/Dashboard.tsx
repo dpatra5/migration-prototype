@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { canAccessPage, type AccessControlConfig, type AppPage, type Role } from "../accessControl";
-import { mockMetrics, mockMetricsByYear, mockMetricsByMonth, mockJobs } from "../data/mockData";
+import {
+  canAccessPage,
+  type AccessControlConfig,
+  type AppPage,
+  type Role,
+} from "../accessControl";
+import {
+  mockMetrics,
+  mockMetricsByYear,
+  mockMetricsByMonth,
+  mockJobs,
+} from "../data/mockData";
 import {
   JobStatusValues,
   type AppNotification,
@@ -25,16 +35,61 @@ import { SettingsPage } from "./SettingsPage";
 import { BellIcon } from "./icons/BellIcon";
 import { ProfileMenu } from "./ProfileMenu";
 
-const menuItems: { label: AppPage; icon: string; activeBg: string; activeBorder: string }[] = [
-  { label: "Dashboard",         icon: "📊", activeBg: "bg-blue-600/20",    activeBorder: "border-blue-500" },
-  { label: "Upload",            icon: "⬆️",  activeBg: "bg-emerald-600/20", activeBorder: "border-emerald-500" },
-  { label: "Mapping",           icon: "🗺️", activeBg: "bg-purple-600/20",  activeBorder: "border-purple-500" },
-  { label: "Review",            icon: "👁️",  activeBg: "bg-amber-600/20",   activeBorder: "border-amber-500" },
-  { label: "Unclassified Docs", icon: "📄", activeBg: "bg-orange-600/20",  activeBorder: "border-orange-500" },
-  { label: "Audit Trail",       icon: "🔍", activeBg: "bg-indigo-600/20",  activeBorder: "border-indigo-500" },
+const menuItems: {
+  label: AppPage;
+  icon: string;
+  activeBg: string;
+  activeBorder: string;
+}[] = [
+  {
+    label: "Dashboard",
+    icon: "📊",
+    activeBg: "bg-blue-600/20",
+    activeBorder: "border-blue-500",
+  },
+  {
+    label: "Upload",
+    icon: "⬆️",
+    activeBg: "bg-emerald-600/20",
+    activeBorder: "border-emerald-500",
+  },
+  {
+    label: "Mapping",
+    icon: "🗺️",
+    activeBg: "bg-purple-600/20",
+    activeBorder: "border-purple-500",
+  },
+  {
+    label: "Review",
+    icon: "👁️",
+    activeBg: "bg-amber-600/20",
+    activeBorder: "border-amber-500",
+  },
+  {
+    label: "Unclassified Docs",
+    icon: "📄",
+    activeBg: "bg-orange-600/20",
+    activeBorder: "border-orange-500",
+  },
+  {
+    label: "Audit Trail",
+    icon: "🔍",
+    activeBg: "bg-indigo-600/20",
+    activeBorder: "border-indigo-500",
+  },
   // { label: "Notifications",     icon: "🔔", activeBg: "bg-pink-600/20",    activeBorder: "border-pink-500" },
-  { label: "User Management",   icon: "🧑‍💼", activeBg: "bg-cyan-600/20",    activeBorder: "border-cyan-500" },
-  { label: "Settings",          icon: "⚙️",  activeBg: "bg-slate-600/20",   activeBorder: "border-slate-500" },
+  {
+    label: "User Management",
+    icon: "🧑‍💼",
+    activeBg: "bg-cyan-600/20",
+    activeBorder: "border-cyan-500",
+  },
+  {
+    label: "Settings",
+    icon: "⚙️",
+    activeBg: "bg-slate-600/20",
+    activeBorder: "border-slate-500",
+  },
 ];
 
 interface DashboardProps {
@@ -181,19 +236,32 @@ const toastStyle: Record<
   },
 };
 
-export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onSignOut }: DashboardProps) {
+export function Dashboard({
+  currentRole,
+  accessConfig,
+  onAccessConfigChange,
+  onSignOut,
+}: DashboardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [activeItem, setActiveItem] = useState<AppPage>(accessConfig[currentRole].pages[0]);
+  const [activeItem, setActiveItem] = useState<AppPage>(
+    accessConfig[currentRole].pages[0],
+  );
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
   const [searchTerm, setSearchTerm] = useState("");
   const [notifications, setNotifications] =
     useState<AppNotification[]>(initialNotifications);
   const [toastNotification, setToastNotification] =
     useState<AppNotification | null>(null);
+  const [activeMigrations, setActiveMigrations] = useState<
+    Array<ScheduledMigration & { phase: SchedulerPhase }>
+  >([]);
   const [activeMigration, setActiveMigration] =
     useState<ScheduledMigration | null>(null);
   const [migrationPhase, setMigrationPhase] =
     useState<SchedulerPhase>("running");
+  const [selectedMigrationId, setSelectedMigrationId] = useState<string | null>(
+    null,
+  );
   const nextJobNumber = useRef(105);
 
   const unreadNotificationCount = notifications.filter(
@@ -220,7 +288,7 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
   );
 
   const startMigration = useCallback(
-    (migrationDetails: Omit<ScheduledMigration, "id">) => {
+    (migrationDetails: Omit<ScheduledMigration, "id" | "startedAt">) => {
       const now = new Date();
       const jobId = `J-${nextJobNumber.current}`;
       nextJobNumber.current += 1;
@@ -256,9 +324,23 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
         ...currentNotifications,
       ]);
       setToastNotification(startedNotification);
-      setActiveMigration(migration);
-      setMigrationPhase("running");
+      setActiveMigrations((currentMigrations) => [
+        ...currentMigrations,
+        { ...migration, phase: "running" },
+      ]);
+      setSelectedMigrationId((currentSelectedId) => currentSelectedId ?? jobId);
       setActiveItem("Dashboard");
+    },
+    [],
+  );
+
+  const updateMigrationPhase = useCallback(
+    (jobId: string, phase: SchedulerPhase) => {
+      setActiveMigrations((currentMigrations) =>
+        currentMigrations.map((migration) =>
+          migration.id === jobId ? { ...migration, phase } : migration,
+        ),
+      );
     },
     [],
   );
@@ -365,7 +447,11 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
 
   const revokeJob = useCallback(
     (jobId: string) => {
-      if (activeMigration?.id === jobId) {
+      const isActive = activeMigrations.some(
+        (migration) => migration.id === jobId,
+      );
+
+      if (isActive) {
         updateJobStatus(jobId, JobStatusValues.Pending);
         updateMigrationNotification(
           jobId,
@@ -374,8 +460,18 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
           `Migration ${jobId} Revoked`,
           `Migration ${jobId} was revoked and moved to pending state.`,
         );
-        setMigrationPhase("revoked");
-        setActiveMigration(null);
+        setActiveMigrations((currentMigrations) =>
+          currentMigrations.filter((migration) => migration.id !== jobId),
+        );
+        setSelectedMigrationId((currentSelectedId) => {
+          if (currentSelectedId !== jobId) {
+            return currentSelectedId;
+          }
+          const remaining = activeMigrations.filter(
+            (migration) => migration.id !== jobId,
+          );
+          return remaining[0]?.id ?? null;
+        });
         return;
       }
 
@@ -388,7 +484,7 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
         `Migration ${jobId} was revoked manually.`,
       );
     },
-    [activeMigration, updateJobStatus, updateMigrationNotification],
+    [activeMigrations, updateJobStatus, updateMigrationNotification],
   );
 
   const retryJob = useCallback(
@@ -405,9 +501,17 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
     [updateJobStatus, updateMigrationNotification],
   );
 
-  const availableMenuItems = menuItems.filter((item) => canAccessPage(accessConfig, currentRole, item.label));
+  const availableMenuItems = menuItems.filter((item) =>
+    canAccessPage(accessConfig, currentRole, item.label),
+  );
 
   useEffect(() => {
+    // "Notifications" is opened via the header bell icon rather than the sidebar menu,
+    // so it should stay open for any role even if it isn't in that role's RBAC page list.
+    if (activeItem === "Notifications") {
+      return;
+    }
+
     if (!canAccessPage(accessConfig, currentRole, activeItem)) {
       setActiveItem(accessConfig[currentRole].pages[0]);
     }
@@ -562,6 +666,88 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
                 </div>
               </section>
 
+              {activeMigrations.length > 0 && (
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {activeMigrations.map((migration) => {
+                      const isSelected = migration.id === selectedMigrationId;
+                      const dotColor =
+                        migration.phase === "running"
+                          ? "bg-blue-500"
+                          : migration.phase === "complete"
+                            ? "bg-emerald-500"
+                            : "bg-gray-400";
+                      return (
+                        <button
+                          key={migration.id}
+                          type="button"
+                          onClick={() => setSelectedMigrationId(migration.id)}
+                          className={`flex items-center gap-2 whitespace-nowrap rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
+                            isSelected
+                              ? "border-blue-500 bg-blue-600 text-white shadow-sm"
+                              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                          }`}
+                        >
+                          <span
+                            className={`w-2 h-2 rounded-full ${isSelected ? "bg-white" : dotColor}`}
+                          />
+                          {migration.study}
+                          <span
+                            className={
+                              isSelected ? "text-blue-100" : "text-gray-400"
+                            }
+                          >
+                            {migration.id}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {activeMigrations
+                    .filter((migration) => migration.id === selectedMigrationId)
+                    .map((migration) => (
+                      <AutomaticJobScheduler
+                        key={migration.id}
+                        migration={migration}
+                        phase={migration.phase}
+                        onJobComplete={(jobId) => {
+                          updateMigrationPhase(jobId, "complete");
+                          updateJobStatus(jobId, JobStatusValues.Partial);
+                          updateMigrationNotification(
+                            jobId,
+                            "partial",
+                            "warning",
+                            `Migration ${jobId} Partial`,
+                            `Migration ${jobId} completed with partial success. Some files require review.`,
+                          );
+                          setToastNotification({
+                            id: `N-${Date.now()}`,
+                            type: "success",
+                            title: `Migration ${jobId} Completed`,
+                            message: `Migration ${jobId} finished successfully. 114 of 120 files migrated; 6 files need review.`,
+                            time: formatNotificationTime(new Date()),
+                            read: false,
+                            jobId,
+                            migrationStatus: "partial",
+                          });
+                        }}
+                        onJobRevoked={(jobId) => {
+                          updateMigrationPhase(jobId, "revoked");
+                          updateJobStatus(jobId, JobStatusValues.Pending);
+                          updateMigrationNotification(
+                            jobId,
+                            "revoked",
+                            "warning",
+                            `Migration ${jobId} Revoked`,
+                            `Migration ${jobId} was revoked and moved to pending state.`,
+                          );
+                        }}
+                      />
+                    ))}
+                </section>
+              )}
+
               <section>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-bold text-gray-900">
@@ -583,7 +769,11 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
                     View Full Audit Trail →
                   </button>
                 </div>
-                <RecentJobsTable jobs={filteredJobs} onRevoke={revokeJob} onRetry={retryJob} />
+                <RecentJobsTable
+                  jobs={filteredJobs}
+                  onRevoke={revokeJob}
+                  onRetry={retryJob}
+                />
               </section>
             </div>
           )}
@@ -601,7 +791,10 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
           {activeItem === "Audit Trail" && <AuditTrailPage />}
 
           {activeItem === "User Management" && (
-            <UserManagementPage currentRole={currentRole} accessConfig={accessConfig} />
+            <UserManagementPage
+              currentRole={currentRole}
+              accessConfig={accessConfig}
+            />
           )}
 
           {activeItem === "Notifications" && (
@@ -614,7 +807,13 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
             />
           )}
 
-          {activeItem === "Settings" && <SettingsPage currentRole={currentRole} accessConfig={accessConfig} onAccessConfigChange={onAccessConfigChange} />}
+          {activeItem === "Settings" && (
+            <SettingsPage
+              currentRole={currentRole}
+              accessConfig={accessConfig}
+              onAccessConfigChange={onAccessConfigChange}
+            />
+          )}
         </main>
       </div>
     </div>
