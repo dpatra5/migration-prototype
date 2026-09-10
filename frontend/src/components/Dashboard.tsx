@@ -255,14 +255,17 @@ export function Dashboard({
   const [activeMigrations, setActiveMigrations] = useState<
     Array<ScheduledMigration & { phase: SchedulerPhase }>
   >([]);
-  const [activeMigration, setActiveMigration] =
-    useState<ScheduledMigration | null>(null);
-  const [migrationPhase, setMigrationPhase] =
-    useState<SchedulerPhase>("running");
   const [selectedMigrationId, setSelectedMigrationId] = useState<string | null>(
     null,
   );
   const nextJobNumber = useRef(105);
+
+  const selectedMigration =
+    activeMigrations.find(
+      (migration) => migration.id === selectedMigrationId,
+    ) ?? null;
+  const selectedMigrationPhase: SchedulerPhase =
+    selectedMigration?.phase ?? "running";
 
   const unreadNotificationCount = notifications.filter(
     (notification) => !notification.read,
@@ -422,7 +425,7 @@ export function Dashboard({
 
   const handleMigrationComplete = useCallback(
     (jobId: string) => {
-      setMigrationPhase("complete");
+      updateMigrationPhase(jobId, "complete");
       updateJobStatus(jobId, JobStatusValues.Partial);
       updateMigrationNotification(
         jobId,
@@ -442,7 +445,7 @@ export function Dashboard({
         migrationStatus: "partial",
       });
     },
-    [updateJobStatus, updateMigrationNotification],
+    [updateMigrationPhase, updateJobStatus, updateMigrationNotification],
   );
 
   const revokeJob = useCallback(
@@ -650,6 +653,7 @@ export function Dashboard({
                 <p className="text-gray-500 text-sm mb-4">
                   Real-time migration statistics
                 </p>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
                   <MetricsOverview
                     metrics={mockMetrics}
@@ -658,95 +662,13 @@ export function Dashboard({
                   />
                   <MigrationProgressPanel
                     jobs={jobs}
-                    activeMigration={activeMigration}
-                    migrationPhase={migrationPhase}
+                    activeMigration={selectedMigration}
+                    migrationPhase={selectedMigrationPhase}
                     onJobComplete={handleMigrationComplete}
                     onRevoke={revokeJob}
                   />
                 </div>
               </section>
-
-              {activeMigrations.length > 0 && (
-                <section className="space-y-3">
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    {activeMigrations.map((migration) => {
-                      const isSelected = migration.id === selectedMigrationId;
-                      const dotColor =
-                        migration.phase === "running"
-                          ? "bg-blue-500"
-                          : migration.phase === "complete"
-                            ? "bg-emerald-500"
-                            : "bg-gray-400";
-                      return (
-                        <button
-                          key={migration.id}
-                          type="button"
-                          onClick={() => setSelectedMigrationId(migration.id)}
-                          className={`flex items-center gap-2 whitespace-nowrap rounded-xl border px-4 py-2 text-sm font-medium transition-colors ${
-                            isSelected
-                              ? "border-blue-500 bg-blue-600 text-white shadow-sm"
-                              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                          }`}
-                        >
-                          <span
-                            className={`w-2 h-2 rounded-full ${isSelected ? "bg-white" : dotColor}`}
-                          />
-                          {migration.study}
-                          <span
-                            className={
-                              isSelected ? "text-blue-100" : "text-gray-400"
-                            }
-                          >
-                            {migration.id}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {activeMigrations
-                    .filter((migration) => migration.id === selectedMigrationId)
-                    .map((migration) => (
-                      <AutomaticJobScheduler
-                        key={migration.id}
-                        migration={migration}
-                        phase={migration.phase}
-                        onJobComplete={(jobId) => {
-                          updateMigrationPhase(jobId, "complete");
-                          updateJobStatus(jobId, JobStatusValues.Partial);
-                          updateMigrationNotification(
-                            jobId,
-                            "partial",
-                            "warning",
-                            `Migration ${jobId} Partial`,
-                            `Migration ${jobId} completed with partial success. Some files require review.`,
-                          );
-                          setToastNotification({
-                            id: `N-${Date.now()}`,
-                            type: "success",
-                            title: `Migration ${jobId} Completed`,
-                            message: `Migration ${jobId} finished successfully. 114 of 120 files migrated; 6 files need review.`,
-                            time: formatNotificationTime(new Date()),
-                            read: false,
-                            jobId,
-                            migrationStatus: "partial",
-                          });
-                        }}
-                        onJobRevoked={(jobId) => {
-                          updateMigrationPhase(jobId, "revoked");
-                          updateJobStatus(jobId, JobStatusValues.Pending);
-                          updateMigrationNotification(
-                            jobId,
-                            "revoked",
-                            "warning",
-                            `Migration ${jobId} Revoked`,
-                            `Migration ${jobId} was revoked and moved to pending state.`,
-                          );
-                        }}
-                      />
-                    ))}
-                </section>
-              )}
 
               <section>
                 <div className="flex items-center justify-between mb-3">
