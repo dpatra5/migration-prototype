@@ -21,6 +21,9 @@ export interface Job {
   status: JobStatus;
   date: string;
   assignedBy: string;
+  totalFiles?: number;
+  successfulFiles?: number;
+  failedFiles?: number;
 }
 
 export interface JobLog {
@@ -34,6 +37,9 @@ export interface MigrationMetrics {
   success: number;
   failed: number;
   unclassified: number;
+  studies: number;
+  countries: number;
+  sites: number;
 }
 
 export type NotificationType = "success" | "error" | "warning" | "info";

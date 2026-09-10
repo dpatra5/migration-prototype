@@ -21,10 +21,20 @@ function statusStyle(s: JobStatus) {
 }
 
 function hasLogs(job: Job) {
-  return (job.status === "Running" || job.status === "Failed") && mockJobLogs[job.id];
+  return Boolean(mockJobLogs[job.id]);
 }
 
-export function RecentJobsTable({ jobs, onRevoke }: { jobs: Job[]; onRevoke: (jobId: string) => void }) {
+const retryableStatuses: JobStatus[] = ["Failed", "Partial"];
+
+export function RecentJobsTable({
+  jobs,
+  onRevoke,
+  onRetry,
+}: {
+  jobs: Job[];
+  onRevoke: (jobId: string) => void;
+  onRetry: (jobId: string) => void;
+}) {
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
 
   return (
@@ -52,32 +62,38 @@ export function RecentJobsTable({ jobs, onRevoke }: { jobs: Job[]; onRevoke: (jo
           <tbody className="divide-y divide-gray-100">
             {jobs.map((job, index) => {
               const s = statusStyle(job.status);
-              const clickable = hasLogs(job);
               const isExpanded = expandedJob === job.id;
-              const toggle = () => clickable && setExpandedJob(isExpanded ? null : job.id);
+              const toggle = () => setExpandedJob(isExpanded ? null : job.id);
+
+              let actionLabel = "View Details";
+              let actionHandler = toggle;
+              if (isExpanded) {
+                if (job.status === "Running") {
+                  actionLabel = "Revoke";
+                  actionHandler = () => onRevoke(job.id);
+                } else if (retryableStatuses.includes(job.status)) {
+                  actionLabel = "Retry";
+                  actionHandler = () => onRetry(job.id);
+                }
+              }
+
               return (
                 <Fragment key={job.id}>
                   <tr
                     onClick={toggle}
-                    onKeyDown={(e) => { if (clickable && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggle(); } }}
-                    tabIndex={clickable ? 0 : undefined}
-                    role={clickable ? "button" : undefined}
-                    aria-expanded={clickable ? isExpanded : undefined}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
+                    tabIndex={0}
+                    role="button"
+                    aria-expanded={isExpanded}
                     className={`${
                       index % 2 === 0 ? "bg-white" : "bg-slate-50/30"
-                    } text-center transition-all duration-200 ${
-                    clickable
-                      ? "cursor-pointer hover:bg-blue-50"
-                      : "hover:bg-slate-50"
-                  } ${isExpanded ? "bg-blue-50" : ""}`}
+                    } text-center transition-all duration-200 cursor-pointer hover:bg-blue-50 ${isExpanded ? "bg-blue-50" : ""}`}
                   >
                     <td className="px-4 py-3 font-semibold text-gray-900">
                       <span className="inline-flex items-center gap-1.5">
-                        {clickable && (
-                          <svg aria-hidden="true" className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
-                        )}
+                        <svg aria-hidden="true" className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
                       <div className="flex items-center justify-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                         <span className="font-bold text-slate-800">
@@ -108,42 +124,50 @@ export function RecentJobsTable({ jobs, onRevoke }: { jobs: Job[]; onRevoke: (jo
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          onRevoke(job.id);
+                          actionHandler();
                         }}
-                        disabled={job.status === "Revoked"}
-                        className="
+                        className={`
                         px-4
                         py-2
                         text-xs
                         font-semibold
-                        text-rose-600
-                        bg-rose-50
-                        hover:bg-rose-100
                         rounded-xl
                         transition-all
                         duration-200
                         shadow-sm
-                        "                      >
-                        {job.status === "Revoked" ? "Revoked" : "Revoke"}
+                        ${
+                          actionLabel === "Revoke"
+                            ? "text-rose-600 bg-rose-50 hover:bg-rose-100"
+                            : actionLabel === "Retry"
+                              ? "text-amber-600 bg-amber-50 hover:bg-amber-100"
+                              : "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                        }
+                        `}
+                      >
+                        {actionLabel}
                       </button>
                     </td>
                   </tr>
-                  {isExpanded && mockJobLogs[job.id] && (
+                  {isExpanded && (
                     <tr key={`${job.id}-logs`}>
                       <td colSpan={6} className="p-0">
                         <div className="bg-gray-900 text-gray-300 px-5 py-4 mx-3 mb-3 rounded-xl font-mono text-xs leading-relaxed max-h-64 overflow-y-auto">
-                          {mockJobLogs[job.id].map((log, i) => {
-                            const ls = logLevelStyle[log.level];
-                            return (
-                              <div key={i} className="flex gap-3 py-0.5">
-                                <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
-                                <span className={`font-bold flex-shrink-0 w-12 ${ls.color}`}>[{ls.label}]</span>
-                                <span className={log.level === "error" ? "text-rose-400" : log.level === "warn" ? "text-amber-400" : "text-gray-300"}>
-                                  {log.message}
-                                </span>
-                              </div>
-                            );
-                          })}
+                          {hasLogs(job) ? (
+                            mockJobLogs[job.id].map((log, i) => {
+                              const ls = logLevelStyle[log.level];
+                              return (
+                                <div key={i} className="flex gap-3 py-0.5">
+                                  <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
+                                  <span className={`font-bold flex-shrink-0 w-12 ${ls.color}`}>[{ls.label}]</span>
+                                  <span className={log.level === "error" ? "text-rose-400" : log.level === "warn" ? "text-amber-400" : "text-gray-300"}>
+                                    {log.message}
+                                  </span>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-gray-500">No logs recorded for this job.</p>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -157,3 +181,4 @@ export function RecentJobsTable({ jobs, onRevoke }: { jobs: Job[]; onRevoke: (jo
     </div>
   );
 }
+

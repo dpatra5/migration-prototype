@@ -155,6 +155,21 @@ export function AuditTrailPage() {
     { key: "error",   label: "Error",   color: "text-rose-600",   activeColor: "bg-rose-600 text-white" },
   ];
 
+  const exportLogs = (entry: AuditEntry) => {
+    if (!entry.logs || entry.logs.length === 0) return;
+    const header = `Audit Log Export - ${entry.id}\nAction: ${entry.action}\nUser: ${entry.user}\nStudy: ${entry.target}\nTimestamp: ${entry.timestamp}\n${"=".repeat(50)}\n`;
+    const lines = entry.logs.map((log) => `${log.timestamp} [${log.level.toUpperCase()}] ${log.message}`);
+    const blob = new Blob([header + lines.join("\n") + "\n"], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${entry.id}-audit-logs.txt`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="px-6 py-5 flex flex-col items-center">
       <div className="w-full max-w-5xl">
@@ -258,7 +273,16 @@ export function AuditTrailPage() {
                               <div className="bg-gray-900 text-gray-300 px-5 py-4 mx-3 mb-3 rounded-xl font-mono text-xs leading-relaxed max-h-64 overflow-y-auto">
                                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-700">
                                   <span className="text-gray-400 font-sans text-xs font-semibold uppercase tracking-wider">Detailed Logs — {entry.id}</span>
-                                  <span className="text-gray-500 font-sans text-xs">{entry.logs.length} entries</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => exportLogs(entry)}
+                                    className="inline-flex items-center gap-1.5 rounded-md border border-gray-700 bg-gray-800 px-2.5 py-1 font-sans text-xs font-medium text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+                                  >
+                                    <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                                    </svg>
+                                    Export
+                                  </button>
                                 </div>
                                 {entry.logs.map((log, i) => {
                                   const ls = logLevelStyle[log.level];
