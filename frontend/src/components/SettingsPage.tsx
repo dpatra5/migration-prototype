@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { canManageRole, roles, type AccessControlConfig, type AppPage, type Role } from "../accessControl";
+import { roles, type AccessControlConfig, type AppPage, type Role } from "../accessControl";
 
 interface SettingsState {
   emailNotifications: boolean;
@@ -11,18 +11,6 @@ interface SettingsState {
   inboxBasePath: string;
   sessionTimeout: string;
 }
-
-interface ManagedUser {
-  id: string;
-  name: string;
-  role: Role;
-}
-
-const initialManagedUsers: ManagedUser[] = [
-  { id: "u-100", name: "Priya Shah", role: "support" },
-  { id: "u-101", name: "Marcus Lee", role: "user" },
-  { id: "u-102", name: "Elena Rossi", role: "admin" },
-];
 
 interface SettingsPageProps {
   currentRole: Role;
@@ -42,7 +30,6 @@ export function SettingsPage({ currentRole, accessConfig, onAccessConfigChange }
     sessionTimeout: "30",
   });
   const [saved, setSaved] = useState(false);
-  const [managedUsers, setManagedUsers] = useState(initialManagedUsers);
 
   const update = <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -53,14 +40,6 @@ export function SettingsPage({ currentRole, accessConfig, onAccessConfigChange }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
-
-  const updateManagedUserRole = (userId: string, role: Role) => {
-    setManagedUsers((users) => users.map((user) => (
-      user.id === userId ? { ...user, role } : user
-    )));
-  };
-
-  const manageableRoles = roles.filter((role) => canManageRole(accessConfig, currentRole, role));
 
   const togglePageAccess = (role: Role, page: AppPage) => {
     const currentPages = accessConfig[role].pages;
@@ -162,37 +141,6 @@ export function SettingsPage({ currentRole, accessConfig, onAccessConfigChange }
             </div>
           </div>
 
-          {manageableRoles.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-1">Role Management</h3>
-              <p className="text-sm text-gray-500 mb-4">Assign roles within your administrative scope.</p>
-              <div className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
-                {managedUsers.map((user) => {
-                  const canManageUser = canManageRole(accessConfig, currentRole, user.role);
-                  const availableRoles = canManageUser ? manageableRoles : [user.role];
-
-                  return (
-                    <div key={user.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{user.name}</p>
-                        <p className="text-xs text-gray-500">{accessConfig[user.role].description}</p>
-                      </div>
-                      <select
-                        aria-label={`Role for ${user.name}`}
-                        value={user.role}
-                        disabled={!canManageUser}
-                        onChange={(event) => updateManagedUserRole(user.id, event.target.value as Role)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-slate-500"
-                      >
-                        {availableRoles.map((role) => <option key={role} value={role}>{accessConfig[role].label}</option>)}
-                      </select>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {currentRole === "superadmin" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-1">Access Policy</h3>
@@ -204,7 +152,7 @@ export function SettingsPage({ currentRole, accessConfig, onAccessConfigChange }
                     <fieldset className="mt-3">
                       <legend className="text-xs font-semibold uppercase tracking-wide text-gray-500">Pages</legend>
                       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        {(["Dashboard", "Upload", "Mapping", "Review", "Unclassified Docs", "Audit Trail", "Notifications", "Settings"] as AppPage[]).map((page) => (
+                        {(["Dashboard", "Upload", "Mapping", "Review", "Unclassified Docs", "Audit Trail", "Notifications", "User Management", "Settings"] as AppPage[]).map((page) => (
                           <label key={page} className="flex items-center gap-2 text-sm text-gray-700">
                             <input type="checkbox" checked={accessConfig[role].pages.includes(page)} onChange={() => togglePageAccess(role, page)} className="h-4 w-4 rounded text-slate-700" />
                             {page}

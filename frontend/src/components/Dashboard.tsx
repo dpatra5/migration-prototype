@@ -20,8 +20,10 @@ import { ReviewPage } from "./ReviewPage";
 import { UnclassifiedDocsPage } from "./UnclassifiedDocsPage";
 import { AuditTrailPage } from "./AuditTrailPage";
 import { NotificationsPage } from "./NotificationsPage";
+import { UserManagementPage } from "./UserManagementPage";
 import { SettingsPage } from "./SettingsPage";
 import { BellIcon } from "./icons/BellIcon";
+import { ProfileMenu } from "./ProfileMenu";
 
 const menuItems: { label: AppPage; icon: string; activeBg: string; activeBorder: string }[] = [
   { label: "Dashboard",         icon: "📊", activeBg: "bg-blue-600/20",    activeBorder: "border-blue-500" },
@@ -31,6 +33,7 @@ const menuItems: { label: AppPage; icon: string; activeBg: string; activeBorder:
   { label: "Unclassified Docs", icon: "📄", activeBg: "bg-orange-600/20",  activeBorder: "border-orange-500" },
   { label: "Audit Trail",       icon: "🔍", activeBg: "bg-indigo-600/20",  activeBorder: "border-indigo-500" },
   // { label: "Notifications",     icon: "🔔", activeBg: "bg-pink-600/20",    activeBorder: "border-pink-500" },
+  { label: "User Management",   icon: "🧑‍💼", activeBg: "bg-cyan-600/20",    activeBorder: "border-cyan-500" },
   { label: "Settings",          icon: "⚙️",  activeBg: "bg-slate-600/20",   activeBorder: "border-slate-500" },
 ];
 
@@ -417,7 +420,7 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
               Migration Utility
             </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => {
@@ -434,14 +437,11 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
                 </span>
               )}
             </button>
-            <p className="text-sm text-gray-300">
-              Welcome back,{" "}
-              <span className="font-semibold text-white">Sahil Dey</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-300">{accessConfig[currentRole].label}</span>
-            <button type="button" onClick={onSignOut} className="rounded-md border border-gray-700 px-2 py-1 text-xs font-semibold text-gray-200 hover:bg-gray-800">Sign out</button>
+            <ProfileMenu
+              name="Sahil Dey"
+              role={accessConfig[currentRole].label}
+              onSignOut={onSignOut}
+            />
           </div>
         </div>
       </header>
@@ -586,6 +586,10 @@ export function Dashboard({ currentRole, accessConfig, onAccessConfigChange, onS
           {activeItem === "Unclassified Docs" && <UnclassifiedDocsPage />}
 
           {activeItem === "Audit Trail" && <AuditTrailPage />}
+
+          {activeItem === "User Management" && (
+            <UserManagementPage currentRole={currentRole} accessConfig={accessConfig} />
+          )}
 
           {activeItem === "Notifications" && (
             <NotificationsPage
