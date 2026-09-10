@@ -175,3 +175,18 @@
 2026-09-10 18:44:19 | INFO    | zip_pipeline | Snapshot refreshed for 1 studies
 2026-09-10 18:48:50 | INFO    | zip_pipeline | Scanning source folder: C:\Users\ADas155\QuIn\POC\Source
 2026-09-10 18:51:36 | INFO    | zip_pipeline | Shutting down ZIP pipeline scheduler
+2026-09-10 18:53:17 | INFO    | zip_pipeline | Starting ZIP pipeline scheduler (scan=5 min, report=60 min, source=C:\Users\ADas155\QuIn\POC\Source)
+2026-09-10 18:53:17 | INFO    | zip_pipeline | Scanning source folder: C:\Users\ADas155\QuIn\POC\Source
+2026-09-10 18:53:19 | INFO    | zip_pipeline | ZIP detected: PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113.zip
+2026-09-10 18:53:20 | INFO    | zip_pipeline | Registry says COMPLETED but destination is missing/empty; re-processing PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113.zip
+2026-09-10 18:53:23 | INFO    | zip_pipeline | Extraction started: PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113.zip -> C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113
+2026-09-10 18:53:25 | INFO    | zip_pipeline | Extraction completed: PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113.zip
+2026-09-10 18:53:26 | INFO    | zip_pipeline | Nested ZIP extraction started: C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\SMF_CERES.zip
+2026-09-10 18:53:28 | INFO    | zip_pipeline | Nested ZIP extraction completed: C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\SMF_CERES.zip
+2026-09-10 18:53:38 | INFO    | zip_pipeline | Nested ZIP extraction started: C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\TMF_CERES.zip
+2026-09-10 18:53:43 | INFO    | zip_pipeline | Nested ZIP extraction completed: C:\Users\ADas155\QuIn\POC\Destination\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze\TMF_CERES.zip
+2026-09-10 18:53:43 | INFO    | zip_pipeline | Reported extraction: study=PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113 before=929 after=929
+2026-09-10 18:53:45 | INFO    | zip_pipeline | Transfer report: job=J000002 study=PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113 src_docs=929 dest_docs=929 src_size=737744644 dest_size=737744644
+2026-09-10 18:53:45 | INFO    | zip_pipeline | Archive completed: PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113.zip -> C:\Users\ADas155\QuIn\POC\Archive\PU456_QMPS_GCPAr_FTP_CRO_Transfer_CNTO1959PSO4021_Evidenze__20260910_163113.zip
+2026-09-10 18:53:45 | INFO    | zip_pipeline | Snapshot refreshed for 1 studies
+2026-09-10 18:58:17 | INFO    | zip_pipeline | Scanning source folder: C:\Users\ADas155\QuIn\POC\Source
