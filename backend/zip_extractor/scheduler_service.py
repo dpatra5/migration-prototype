@@ -10,6 +10,8 @@ from .config import PipelineConfig, load_config
 from .folder_watcher import FolderWatcher
 from .logging_setup import configure_logging, get_logger
 from .registry import ProcessingRegistry
+from .report_writer import ExcelReporter
+from .transfer_report import TransferReporter
 from .zip_service import ZipExtractor
 
 
@@ -17,6 +19,7 @@ class SchedulerService:
     """Wires the pipeline together and drives it on a fixed polling interval."""
 
     JOB_ID = "zip_pipeline_scan"
+    REPORT_JOB_ID = "zip_pipeline_report"
 
     def __init__(self, config: PipelineConfig | None = None, blocking: bool = False) -> None:
         self.config = config or load_config()
@@ -27,7 +30,16 @@ class SchedulerService:
         self.registry = ProcessingRegistry(self.config.registry_path)
         self.extractor = ZipExtractor(self.config.destination_folder)
         self.archiver = ArchiveManager(self.config.archive_folder, self.config.failed_folder)
-        self.watcher = FolderWatcher(self.config, self.registry, self.extractor, self.archiver)
+        self.reporter = ExcelReporter(self.config.report_path, self.config.destination_folder)
+        self.transfer_reporter = TransferReporter(self.config.transfer_report_path)
+        self.watcher = FolderWatcher(
+            self.config,
+            self.registry,
+            self.extractor,
+            self.archiver,
+            self.reporter,
+            self.transfer_reporter,
+        )
 
         self._scheduler = BlockingScheduler() if blocking else BackgroundScheduler()
 
@@ -36,6 +48,12 @@ class SchedulerService:
             self.watcher.scan_once()
         except Exception as exc:
             self._log.exception("Scan cycle failed: %s", exc)
+
+    def _report_job(self) -> None:
+        try:
+            self.reporter.refresh_snapshot()
+        except Exception as exc:
+            self._log.exception("Report snapshot failed: %s", exc)
 
     def start(self, run_immediately: bool = True) -> None:
         interval_minutes = max(1, int(self.config.polling_interval_minutes))
@@ -48,13 +66,24 @@ class SchedulerService:
             max_instances=1,
             coalesce=True,
         )
+        report_minutes = max(1, int(self.config.report_interval_minutes))
+        self._scheduler.add_job(
+            self._report_job,
+            trigger=IntervalTrigger(minutes=report_minutes),
+            id=self.REPORT_JOB_ID,
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
         self._log.info(
-            "Starting ZIP pipeline scheduler (interval=%s min, source=%s)",
+            "Starting ZIP pipeline scheduler (scan=%s min, report=%s min, source=%s)",
             interval_minutes,
+            report_minutes,
             self.config.source_folder,
         )
         if run_immediately:
             self._job()
+            self._report_job()
         self._scheduler.start()
 
     def shutdown(self, wait: bool = True) -> None:

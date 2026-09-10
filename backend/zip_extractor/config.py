@@ -9,7 +9,8 @@ from pathlib import Path
 DEFAULT_SOURCE = r"C:\Users\ADas155\QuIn\POC\Source"
 DEFAULT_DESTINATION = r"C:\Users\ADas155\QuIn\POC\Destination"
 DEFAULT_ARCHIVE = r"C:\Users\ADas155\QuIn\POC\Archive"
-DEFAULT_POLLING_MINUTES = 120
+DEFAULT_POLLING_MINUTES = 5
+DEFAULT_REPORT_MINUTES = 60
 
 
 @dataclass(frozen=True)
@@ -19,7 +20,10 @@ class PipelineConfig:
     archive_folder: Path
     failed_folder: Path
     registry_path: Path
+    report_path: Path
+    transfer_report_path: Path
     polling_interval_minutes: int
+    report_interval_minutes: int
 
     def ensure_folders(self) -> None:
         for p in (
@@ -39,6 +43,9 @@ def load_config(
     polling_interval_minutes: int | None = None,
     failed_folder: str | os.PathLike[str] | None = None,
     registry_path: str | os.PathLike[str] | None = None,
+    report_path: str | os.PathLike[str] | None = None,
+    report_interval_minutes: int | None = None,
+    transfer_report_path: str | os.PathLike[str] | None = None,
 ) -> PipelineConfig:
     """Build a config from explicit args, environment variables, or defaults."""
 
@@ -50,6 +57,14 @@ def load_config(
         registry_path
         or os.getenv("REGISTRY_PATH", str(Path(__file__).resolve().parent / "processing_registry.sqlite"))
     )
+    report = Path(
+        report_path
+        or os.getenv("REPORT_PATH", str(dest / "extraction_report.xlsx"))
+    )
+    transfer = Path(
+        transfer_report_path
+        or os.getenv("TRANSFER_REPORT_PATH", str(dest / "transfer_report.xlsx"))
+    )
 
     interval_env = os.getenv("POLLING_INTERVAL")
     if polling_interval_minutes is None and interval_env:
@@ -60,11 +75,23 @@ def load_config(
     if polling_interval_minutes is None:
         polling_interval_minutes = DEFAULT_POLLING_MINUTES
 
+    report_env = os.getenv("REPORT_INTERVAL")
+    if report_interval_minutes is None and report_env:
+        try:
+            report_interval_minutes = int(report_env)
+        except ValueError:
+            report_interval_minutes = DEFAULT_REPORT_MINUTES
+    if report_interval_minutes is None:
+        report_interval_minutes = DEFAULT_REPORT_MINUTES
+
     return PipelineConfig(
         source_folder=source,
         destination_folder=dest,
         archive_folder=archive,
         failed_folder=failed,
         registry_path=registry,
+        report_path=report,
+        transfer_report_path=transfer,
         polling_interval_minutes=polling_interval_minutes,
+        report_interval_minutes=report_interval_minutes,
     )
