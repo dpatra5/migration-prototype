@@ -1,8 +1,18 @@
-import { useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
+  findMappingForStudy,
   getMappingHistory,
+  recordMapping,
   type MappingHistoryEntry,
 } from "../data/mappingHistory";
+
+export type RemapPrefill = {
+  study: string;
+  country: string;
+  site: string;
+  subsite: string;
+  docType: string;
+};
 
 type MappingStatus = "mapped" | "unclassified" | "pending";
 
@@ -157,6 +167,11 @@ const statusStyle: Record<
 
 const studies = ["All", "STUDY-A", "STUDY-B", "STUDY-C", "STUDY-D"];
 
+const studyOptions = ["STUDY-A", "STUDY-B", "STUDY-C", "STUDY-D"];
+const countryOptions = ["US", "UK", "CA", "IN"];
+const siteOptions = ["Site1", "Site2", "SiteA"];
+const docTypeOptions = ["Protocol", "Informed Consent", "Lab Report", "Regulatory", "Monitoring", "Finance", "Site Management", "Safety"];
+
 function formatMatchedAt(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -181,7 +196,14 @@ function formatMatchedAt(value: string) {
   return `${day}-${month} ${hours}:${minutes}`;
 }
 
-export function MappingPage() {
+type MappingPageProps = {
+  focusedFileName?: string | null;
+  onClearFocus?: () => void;
+  onRemap?: (prefill: RemapPrefill) => void;
+  onRetryMigration?: (prefill: RemapPrefill & { fileName: string }) => void;
+};
+
+export function MappingPage({ focusedFileName, onClearFocus, onRemap, onRetryMigration }: MappingPageProps) {
   const [activeTab, setActiveTab] = useState<"documents" | "history">(
     "documents",
   );
@@ -191,6 +213,32 @@ export function MappingPage() {
   );
   const [historyStudyFilter, setHistoryStudyFilter] = useState("All");
   const [historyCountryFilter, setHistoryCountryFilter] = useState("All");
+  const [mappings, setMappings] = useState<MappingDoc[]>(mockMappings);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<MappingDoc | null>(null);
+  const [editorPlacement, setEditorPlacement] = useState<"top" | "inline">("inline");
+  const [historyDocId, setHistoryDocId] = useState<string | null>(null);
+  const [retrievedDocId, setRetrievedDocId] = useState<string | null>(null);
+
+  const toggleHistory = (docId: string) => {
+    setHistoryDocId((current) => (current === docId ? null : docId));
+    setRetrievedDocId(null);
+  };
+
+  // Falls back to the document's current mapping when no stored history exists.
+  const lastMappingFor = (doc: MappingDoc): MappingHistoryEntry => {
+    const stored = findMappingForStudy(doc.study, doc.country);
+    return (
+      stored ?? {
+        study: doc.study,
+        country: doc.country,
+        site: doc.site,
+        subsite: doc.destination === "VTMF" ? doc.docType : "—",
+        docType: doc.docType,
+        matchedAt: "",
+      }
+    );
+  };
 
   const mappingHistory = useMemo<MappingHistoryEntry[]>(
     () => (activeTab === "history" ? getMappingHistory() : []),
@@ -218,19 +266,223 @@ export function MappingPage() {
     return true;
   });
 
-  const filtered = mockMappings.filter((d) => {
+  useEffect(() => {
+    if (!focusedFileName) {
+      return;
+    }
+
+    const match = mappings.find((doc) => doc.fileName === focusedFileName);
+    if (match) {
+      setActiveTab("documents");
+      setStudyFilter("All");
+      setStatusFilter("all");
+      setEditingId(match.id);
+      setDraft(match);
+      setEditorPlacement("top");
+    }
+  }, [focusedFileName, mappings]);
+
+  const startEditing = (doc: MappingDoc) => {
+    setEditingId(doc.id);
+    setDraft(doc);
+    setEditorPlacement("inline");
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setDraft(null);
+    onClearFocus?.();
+  };
+
+  const saveDraft = () => {
+    if (!draft) {
+      return;
+    }
+
+    setMappings((current) => current.map((doc) => (doc.id === draft.id ? draft : doc)));
+    cancelEditing();
+  };
+
+  const updateDraft = (field: keyof MappingDoc, value: string | number) => {
+    setDraft((current) => (current ? { ...current, [field]: value } : current));
+  };
+
+  const retryWithDraft = () => {
+    if (!draft) {
+      return;
+    }
+
+    const remapped: MappingDoc = {
+      ...draft,
+      status: "mapped",
+      destination: "VTMF",
+    };
+
+    setMappings((current) =>
+      current.map((doc) => (doc.id === remapped.id ? remapped : doc)),
+    );
+    recordMapping({
+      study: remapped.study,
+      country: remapped.country,
+      site: remapped.site,
+      subsite: remapped.docType,
+      docType: remapped.docType,
+    });
+    cancelEditing();
+    onRetryMigration?.({
+      fileName: remapped.fileName,
+      study: remapped.study,
+      country: remapped.country,
+      site: remapped.site,
+      subsite: remapped.docType,
+      docType: remapped.docType,
+    });
+  };
+
+  const filtered = mappings.filter((d) => {
     if (studyFilter !== "All" && d.study !== studyFilter) return false;
     if (statusFilter !== "all" && d.status !== statusFilter) return false;
     return true;
   });
 
-  const mappedCount = mockMappings.filter((d) => d.status === "mapped").length;
-  const unclassifiedCount = mockMappings.filter(
-    (d) => d.status === "unclassified",
-  ).length;
-  const pendingCount = mockMappings.filter(
-    (d) => d.status === "pending",
-  ).length;
+  const mappedCount = mappings.filter((d) => d.status === "mapped").length;
+  const unclassifiedCount = mappings.filter((d) => d.status === "unclassified").length;
+  const pendingCount = mappings.filter((d) => d.status === "pending").length;
+
+  const editorPanel = draft && editingId ? (
+    <div className="bg-white rounded-2xl shadow-sm border-2 border-purple-200 p-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h3 className="text-base font-bold text-gray-900">Detailed Mapping — {draft.fileName}</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Document ID {draft.id} · Edit the metadata below and save to remap this document.
+          </p>
+        </div>
+        <button
+          onClick={cancelEditing}
+          className="text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          ✕ Close
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label htmlFor="mapping-file-name" className="block text-xs font-semibold text-gray-600 mb-1">File Name</label>
+          <input
+            id="mapping-file-name"
+            type="text"
+            value={draft.fileName}
+            onChange={(e) => updateDraft("fileName", e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+        </div>
+        <div>
+          <label htmlFor="mapping-study" className="block text-xs font-semibold text-gray-600 mb-1">Study</label>
+          <select
+            id="mapping-study"
+            value={draft.study}
+            onChange={(e) => updateDraft("study", e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            {studyOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="mapping-country" className="block text-xs font-semibold text-gray-600 mb-1">Country</label>
+          <select
+            id="mapping-country"
+            value={draft.country}
+            onChange={(e) => updateDraft("country", e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            {countryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="mapping-site" className="block text-xs font-semibold text-gray-600 mb-1">Site</label>
+          <select
+            id="mapping-site"
+            value={draft.site}
+            onChange={(e) => updateDraft("site", e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            {siteOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="mapping-doc-type" className="block text-xs font-semibold text-gray-600 mb-1">Document Type</label>
+          <select
+            id="mapping-doc-type"
+            value={draft.docType}
+            onChange={(e) => updateDraft("docType", e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="—">— Not set —</option>
+            {docTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="mapping-status" className="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+          <select
+            id="mapping-status"
+            value={draft.status}
+            onChange={(e) => updateDraft("status", e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="mapped">Mapped</option>
+            <option value="unclassified">Unclassified</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="mapping-match" className="block text-xs font-semibold text-gray-600 mb-1">Metadata Match (%)</label>
+          <input
+            id="mapping-match"
+            type="number"
+            min={0}
+            max={100}
+            value={draft.metadataMatch}
+            onChange={(e) => updateDraft("metadataMatch", Number(e.target.value))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+        </div>
+        <div className="md:col-span-2">
+          <label htmlFor="mapping-destination" className="block text-xs font-semibold text-gray-600 mb-1">Destination</label>
+          <input
+            id="mapping-destination"
+            type="text"
+            value={draft.destination}
+            onChange={(e) => updateDraft("destination", e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 mt-5">
+        <button
+          onClick={cancelEditing}
+          className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={saveDraft}
+          className="px-4 py-2 rounded-lg text-sm font-semibold bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+        >
+          Save Mapping
+        </button>
+        {editorPlacement === "top" && (
+          <button
+            onClick={retryWithDraft}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+          >
+            🔄 Retry Migration
+          </button>
+        )}
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className="px-6 py-5 flex flex-col items-center">
@@ -363,6 +615,10 @@ export function MappingPage() {
           </>
         ) : (
           <>
+            {editorPlacement === "top" && editorPanel && (
+              <div className="mb-5">{editorPanel}</div>
+            )}
+
             {/* Summary cards */}
             <div className="grid grid-cols-3 gap-4 mb-5">
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
@@ -444,13 +700,14 @@ export function MappingPage() {
                       <th className="px-4 py-3">Metadata Match</th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3">Destination</th>
+                      <th className="px-4 py-3">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filtered.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={9}
                           className="px-4 py-8 text-center text-gray-400"
                         >
                           No documents match the filter
@@ -460,9 +717,9 @@ export function MappingPage() {
                       filtered.map((doc) => {
                         const s = statusStyle[doc.status];
                         return (
+                          <Fragment key={doc.id}>
                           <tr
-                            key={doc.id}
-                            className="text-center hover:bg-gray-50/50 transition-colors"
+                            className={`text-center transition-colors ${editingId === doc.id ? "bg-purple-50" : "hover:bg-gray-50/50"}`}
                           >
                             <td className="px-4 py-3 text-left font-medium text-gray-900">
                               {doc.fileName}
@@ -509,7 +766,145 @@ export function MappingPage() {
                                 {doc.destination}
                               </span>
                             </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => toggleHistory(doc.id)}
+                                aria-expanded={historyDocId === doc.id}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+                              >
+                                🕘 History
+                              </button>
+                            </td>
                           </tr>
+                          {historyDocId === doc.id && (
+                            <tr>
+                              <td colSpan={9} className="px-4 py-4 bg-purple-50/40 text-left">
+                                {retrievedDocId === doc.id ? (
+                                  <div className="bg-white rounded-2xl border-2 border-purple-200 p-5">
+                                    <div className="flex items-start justify-between gap-4 mb-4">
+                                      <div>
+                                        <h3 className="text-base font-bold text-gray-900">
+                                          Mapping Details — {doc.fileName}
+                                        </h3>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                          Document ID {doc.id}
+                                        </p>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          const entry = lastMappingFor(doc);
+                                          onRemap?.({
+                                            study: doc.study,
+                                            country: doc.country,
+                                            site: entry.site,
+                                            subsite: entry.subsite,
+                                            docType: doc.docType,
+                                          });
+                                        }}
+                                        className="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                                      >
+                                        🔁 Remap
+                                      </button>
+                                    </div>
+
+                                    <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-xs">
+                                      <div>
+                                        <dt className="text-gray-500">Study</dt>
+                                        <dd className="font-semibold text-gray-900">{doc.study}</dd>
+                                      </div>
+                                      <div>
+                                        <dt className="text-gray-500">Country</dt>
+                                        <dd className="font-semibold text-gray-900">{doc.country}</dd>
+                                      </div>
+                                      <div>
+                                        <dt className="text-gray-500">Site</dt>
+                                        <dd className="font-semibold text-gray-900">{doc.site}</dd>
+                                      </div>
+                                      <div>
+                                        <dt className="text-gray-500">Document Type</dt>
+                                        <dd className="font-semibold text-gray-900">{doc.docType}</dd>
+                                      </div>
+                                      <div>
+                                        <dt className="text-gray-500">Metadata Match</dt>
+                                        <dd className="font-semibold text-gray-900">{doc.metadataMatch}%</dd>
+                                      </div>
+                                      <div>
+                                        <dt className="text-gray-500">Status</dt>
+                                        <dd className="font-semibold text-gray-900">{s.label}</dd>
+                                      </div>
+                                      <div>
+                                        <dt className="text-gray-500">Destination</dt>
+                                        <dd className="font-semibold text-gray-900">{doc.destination}</dd>
+                                      </div>
+                                      <div>
+                                        <dt className="text-gray-500">Vault Subsite</dt>
+                                        <dd className="font-semibold text-gray-900">{lastMappingFor(doc).subsite}</dd>
+                                      </div>
+                                    </dl>
+
+                                    <div className="flex justify-end mt-4">
+                                      <button
+                                        onClick={() => setRetrievedDocId(null)}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                                      >
+                                        Back to History
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="bg-white rounded-2xl border border-purple-200 p-5">
+                                    <div className="flex items-start justify-between gap-4 mb-3">
+                                      <div>
+                                        <h3 className="text-sm font-bold text-gray-900">
+                                          Last Mapped History — {doc.fileName}
+                                        </h3>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                          Most recent mapping recorded for {doc.study} / {doc.country}
+                                        </p>
+                                      </div>
+                                      <button
+                                        onClick={() => setRetrievedDocId(doc.id)}
+                                        className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                                      >
+                                        ⬇️ Retrieve
+                                      </button>
+                                    </div>
+
+                                    {(() => {
+                                      const entry = lastMappingFor(doc);
+                                      return (
+                                        <dl className="grid grid-cols-2 md:grid-cols-5 gap-x-6 gap-y-2 text-xs">
+                                          <div>
+                                            <dt className="text-gray-500">Study</dt>
+                                            <dd className="font-semibold text-gray-900">{entry.study}</dd>
+                                          </div>
+                                          <div>
+                                            <dt className="text-gray-500">Country</dt>
+                                            <dd className="font-semibold text-gray-900">{entry.country}</dd>
+                                          </div>
+                                          <div>
+                                            <dt className="text-gray-500">Vault Site</dt>
+                                            <dd className="font-semibold text-gray-900">{entry.site}</dd>
+                                          </div>
+                                          <div>
+                                            <dt className="text-gray-500">Vault Subsite</dt>
+                                            <dd className="font-semibold text-gray-900">{entry.subsite}</dd>
+                                          </div>
+                                          <div>
+                                            <dt className="text-gray-500">Last Matched</dt>
+                                            <dd className="font-semibold text-gray-900">
+                                              {entry.matchedAt ? formatMatchedAt(entry.matchedAt) : "Not recorded"}
+                                            </dd>
+                                          </div>
+                                        </dl>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         );
                       })
                     )}
@@ -519,7 +914,7 @@ export function MappingPage() {
             </div>
 
             <div className="mt-4 text-xs text-gray-500 text-center">
-              Showing {filtered.length} of {mockMappings.length} documents
+              Showing {filtered.length} of {mappings.length} documents
             </div>
           </>
         )}

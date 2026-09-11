@@ -25,7 +25,7 @@ import {
   type ScheduledMigration,
 } from "./MigrationProgressPanel";
 import { UploadPage } from "./UploadPage";
-import { MappingPage } from "./MappingPage";
+import { MappingPage, type RemapPrefill } from "./MappingPage";
 import { ReviewPage } from "./ReviewPage";
 import { UnclassifiedDocsPage } from "./UnclassifiedDocsPage";
 import { AuditTrailPage } from "./AuditTrailPage";
@@ -60,12 +60,6 @@ const menuItems: {
     activeBorder: "border-purple-500",
   },
   {
-    label: "Review",
-    icon: "👁️",
-    activeBg: "bg-amber-600/20",
-    activeBorder: "border-amber-500",
-  },
-  {
     label: "Unclassified Docs",
     icon: "📄",
     activeBg: "bg-orange-600/20",
@@ -83,12 +77,6 @@ const menuItems: {
     icon: "🧑‍💼",
     activeBg: "bg-cyan-600/20",
     activeBorder: "border-cyan-500",
-  },
-  {
-    label: "Settings",
-    icon: "⚙️",
-    activeBg: "bg-slate-600/20",
-    activeBorder: "border-slate-500",
   },
 ];
 
@@ -253,12 +241,14 @@ export function Dashboard({
   const [toastNotification, setToastNotification] =
     useState<AppNotification | null>(null);
   const [activeMigrations, setActiveMigrations] = useState<
-    Array<ScheduledMigration & { phase: SchedulerPhase }>
+    (ScheduledMigration & { phase: SchedulerPhase })[]
   >([]);
   const [selectedMigrationId, setSelectedMigrationId] = useState<string | null>(
     null,
   );
-  const nextJobNumber = useRef(105);
+  const [mappingFocusFile, setMappingFocusFile] = useState<string | null>(null);
+  const [uploadPrefill, setUploadPrefill] = useState<RemapPrefill | null>(null);
+  const nextJobNumber = useRef(110);
 
   const selectedMigration =
     activeMigrations.find(
@@ -319,6 +309,9 @@ export function Dashboard({
           status: JobStatusValues.Running,
           date: "03-Sep",
           assignedBy: "Automatic Scheduler",
+          totalFiles: 120,
+          successfulFiles: 0,
+          failedFiles: 0,
         },
         ...currentJobs,
       ]);
@@ -577,7 +570,7 @@ export function Dashboard({
               aria-label="Open notifications"
               className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-700 transition-colors text-yellow-400 hover:text-yellow-300"
             >
-              <BellIcon className="w-6 h-6" />
+              <BellIcon className="w-6 h-6"/>
               {unreadNotificationCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-rose-500 text-white text-[10px] font-semibold leading-[1.1rem] text-center">
                   {bellBadgeCount}
@@ -701,14 +694,36 @@ export function Dashboard({
           )}
 
           {activeItem === "Upload" && (
-            <UploadPage onStartMigration={startMigration} />
+            <UploadPage onStartMigration={startMigration} prefill={uploadPrefill} />
           )}
 
-          {activeItem === "Mapping" && <MappingPage />}
+          {activeItem === "Mapping" && (
+            <MappingPage
+              focusedFileName={mappingFocusFile}
+              onClearFocus={() => setMappingFocusFile(null)}
+              onRemap={(prefill) => {
+                setUploadPrefill(prefill);
+                setActiveItem("Upload");
+              }}
+              onRetryMigration={(details) => {
+                startMigration({
+                  study: details.study,
+                  masterFolder: `${details.fileName} to ${details.site} / ${details.subsite}`,
+                });
+              }}
+            />
+          )}
 
           {activeItem === "Review" && <ReviewPage />}
 
-          {activeItem === "Unclassified Docs" && <UnclassifiedDocsPage />}
+          {activeItem === "Unclassified Docs" && (
+            <UnclassifiedDocsPage
+              onUpdateMetadata={(fileName) => {
+                setMappingFocusFile(fileName);
+                setActiveItem("Mapping");
+              }}
+            />
+          )}
 
           {activeItem === "Audit Trail" && <AuditTrailPage />}
 
@@ -719,7 +734,7 @@ export function Dashboard({
             />
           )}
 
-          {activeItem === "Notifications" && (
+          {/* {activeItem === "Notifications" && (
             <NotificationsPage
               notifications={notifications}
               onMarkRead={markNotificationRead}
@@ -727,15 +742,15 @@ export function Dashboard({
               onDelete={deleteNotification}
               onDeleteMany={deleteNotifications}
             />
-          )}
+          )} */}
 
-          {activeItem === "Settings" && (
+          {/* {activeItem === "Settings" && (
             <SettingsPage
               currentRole={currentRole}
               accessConfig={accessConfig}
               onAccessConfigChange={onAccessConfigChange}
             />
-          )}
+          )} */}
         </main>
       </div>
     </div>

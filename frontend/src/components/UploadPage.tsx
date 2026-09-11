@@ -28,9 +28,16 @@ type UploadPageProps = {
   onStartMigration: (
     migration: Omit<ScheduledMigration, "id" | "startedAt">,
   ) => void;
+  prefill?: {
+    study: string;
+    country: string;
+    site: string;
+    subsite: string;
+    docType: string;
+  } | null;
 };
 
-export function UploadPage({ onStartMigration }: UploadPageProps) {
+export function UploadPage({ onStartMigration, prefill }: UploadPageProps) {
   const [source, setSource] = useState<"inbox" | "manual">("inbox");
   const [selectedStudies, setSelectedStudies] = useState<string[]>([]);
   const [studyDropdownOpen, setStudyDropdownOpen] = useState(false);
@@ -101,7 +108,25 @@ export function UploadPage({ onStartMigration }: UploadPageProps) {
     [mappedDestination, primaryStudy, country],
   );
 
+  const appliedPrefillRef = useRef<typeof prefill>(null);
+
   useEffect(() => {
+    if (!prefill || appliedPrefillRef.current === prefill) return;
+
+    appliedPrefillRef.current = prefill;
+    setSelectedStudies(prefill.study ? [prefill.study] : []);
+    setCountry(prefill.country);
+    if (prefill.docType && prefill.docType !== "—") {
+      setDocumentType(prefill.docType);
+    }
+    setVaultSite(prefill.site);
+    setVaultSubsite(prefill.subsite);
+  }, [prefill]);
+
+  useEffect(() => {
+    // Remap prefill supplies its own destination, so skip auto-mapping for it.
+    if (appliedPrefillRef.current) return;
+
     if (mappedDestination) {
       setVaultSite(mappedDestination.site);
       setVaultSubsite(mappedDestination.subsite);

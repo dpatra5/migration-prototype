@@ -26,12 +26,23 @@ type JobStats = {
   progress: number;
 };
 
+// Statuses imply how far a job got when a job carries no usable file counts.
+const statusFallbackProgress: Record<JobStatus, number> = {
+  Done: 100,
+  Partial: 100,
+  Failed: 100,
+  Running: 60,
+  Revoked: 35,
+  Pending: 8,
+};
+
 function getStaticJobStats(job: Job): JobStats {
   const total = job.totalFiles ?? 0;
   const successful = job.successfulFiles ?? 0;
   const failed = job.failedFiles ?? 0;
   const pending = Math.max(total - successful - failed, 0);
-  const progress = total > 0 ? ((successful + failed) / total) * 100 : 0;
+  const measuredProgress = total > 0 ? ((successful + failed) / total) * 100 : 0;
+  const progress = measuredProgress > 0 ? measuredProgress : statusFallbackProgress[job.status];
   return { total, successful, failed, pending, progress };
 }
 
@@ -39,15 +50,16 @@ const statusRingColor: Record<JobStatus, string> = {
   Done: "#10b981",
   Partial: "#f59e0b",
   Running: "#3b82f6",
-  Pending: "#94a3b8",
+  Pending: "#8b5cf6",
   Failed: "#f43f5e",
-  Revoked: "#6b7280",
+  Revoked: "#f97316",
 };
 
 function MiniCircularProgress({ progress, status }: { progress: number; status: JobStatus }) {
   const radius = 18;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (Math.min(progress, 100) / 100) * circumference;
+  const visibleProgress = Math.min(Math.max(progress, 5), 100);
+  const offset = circumference - (visibleProgress / 100) * circumference;
   const color = statusRingColor[status];
 
   return (

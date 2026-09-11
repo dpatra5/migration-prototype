@@ -55,54 +55,54 @@ export function ProfileMenu({ name, role, onSignOut }: Readonly<ProfileMenuProps
       </button>
 
       {open && (
-        <div
-          role="menu"
-          className="animate-fade-in absolute right-0 top-12 z-30 w-56 overflow-hidden rounded-2xl border border-gray-200/70 bg-gray-50 shadow-2xl ring-1 ring-black/5"
-        >
-          <div className="flex items-center gap-3 bg-black px-4 py-4">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-sm font-semibold text-white ring-2 ring-white/30 backdrop-blur">
+        <div className="absolute right-0 top-full z-30 pt-3">
+          <div
+            role="menu"
+            className="animate-fade-in-up w-52 overflow-hidden rounded-xl border border-slate-200/70 bg-white/85 shadow-xl ring-1 ring-slate-900/5 backdrop-blur-xl"
+          >
+          <div className="flex items-center gap-2.5 border-b border-slate-200/70 bg-slate-800/90 px-3 py-3 backdrop-blur">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/15 text-xs font-semibold text-white ring-1 ring-white/25 backdrop-blur">
               {initials}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-white">{name}</p>
-              <p className="truncate text-xs text-blue-100">{role}</p>
+              <p className="truncate text-xs text-slate-300">{role}</p>
             </div>
           </div>
 
-          <div className="space-y-0 p-1.5">
+          <div className="p-1.5">
             {menuItems.map((item) => (
               <button
                 key={item.label}
                 type="button"
                 onClick={() => setOpen(false)}
-                className="flex w-full items-center justify-center gap-3 rounded-xl px-2 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-white hover:shadow-sm"
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100/80"
               >
                 <span
-                  className={`flex h-7 w-7 items-center justify-center rounded-full text-sm ${item.iconBg}`}
+                  className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs ${item.iconBg}`}
                 >
                   {item.icon}
                 </span>
-                <span className="min-w-[130px] text-center">
-                    {item.label}
-                </span>
+                <span className="flex-1 truncate">{item.label}</span>
               </button>
             ))}
           </div>
 
-          <div className="border-t border-gray-200/70 p-2">
+          <div className="border-t border-slate-200/70 p-1.5">
             <button
               type="button"
               onClick={() => {
                 setOpen(false);
                 onSignOut();
               }}
-              className="flex w-full items-center justify-center gap-3 rounded-xl px-2 py-1.5 text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50"
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-rose-600 transition-colors hover:bg-rose-50"
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-sm">
+              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-rose-50 text-xs">
                 🚪
               </span>
-              <span>Sign out</span>
+              <span className="flex-1 truncate">Sign out</span>
             </button>
+          </div>
           </div>
         </div>
       )}
