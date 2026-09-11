@@ -734,7 +734,7 @@ export function Dashboard({
             />
           )}
 
-          {/* {activeItem === "Notifications" && (
+          {activeItem === "Notifications" && (
             <NotificationsPage
               notifications={notifications}
               onMarkRead={markNotificationRead}
@@ -742,7 +742,7 @@ export function Dashboard({
               onDelete={deleteNotification}
               onDeleteMany={deleteNotifications}
             />
-          )} */}
+          )}
 
           {/* {activeItem === "Settings" && (
             <SettingsPage
