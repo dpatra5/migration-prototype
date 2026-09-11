@@ -34,6 +34,18 @@ import { UserManagementPage } from "./UserManagementPage";
 import { SettingsPage } from "./SettingsPage";
 import { BellIcon } from "./icons/BellIcon";
 import { ProfileMenu } from "./ProfileMenu";
+import { useLanguage } from "../i18n/LanguageContext";
+
+const navTranslationKeys: Partial<Record<AppPage, string>> = {
+  Dashboard: "nav.dashboard",
+  Upload: "nav.upload",
+  Mapping: "nav.mapping",
+  Review: "nav.review",
+  "Unclassified Docs": "nav.unclassifiedDocs",
+  "Audit Trail": "nav.auditTrail",
+  "User Management": "nav.userManagement",
+  Settings: "nav.settings",
+};
 
 const menuItems: {
   label: AppPage;
@@ -230,6 +242,7 @@ export function Dashboard({
   onAccessConfigChange,
   onSignOut,
 }: DashboardProps) {
+  const { t } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<AppPage>(
     accessConfig[currentRole].pages[0],
@@ -556,9 +569,7 @@ export function Dashboard({
                 </svg>
               )}
             </button>
-            <h1 className="text-base font-bold text-white">
-              Migration Utility
-            </h1>
+            <h1 className="text-base font-bold text-white">{t("appTitle")}</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -570,7 +581,7 @@ export function Dashboard({
               aria-label="Open notifications"
               className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-700 transition-colors text-yellow-400 hover:text-yellow-300"
             >
-              <BellIcon className="w-6 h-6"/>
+              <BellIcon className="w-6 h-6" />
               {unreadNotificationCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-rose-500 text-white text-[10px] font-semibold leading-[1.1rem] text-center">
                   {bellBadgeCount}
@@ -611,7 +622,7 @@ export function Dashboard({
                   }`}
                 >
                   <span className="w-5 text-center text-base">{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span>{t(navTranslationKeys[item.label] ?? item.label)}</span>
                 </button>
               );
             })}
@@ -641,10 +652,10 @@ export function Dashboard({
             <div className="px-6 py-3 space-y-6">
               <section>
                 <h2 className="text-lg font-bold text-gray-900 mb-1">
-                  Migration Overview
+                  {t("dashboard.migrationOverview")}
                 </h2>
                 <p className="text-gray-500 text-sm mb-4">
-                  Real-time migration statistics
+                  {t("dashboard.realTimeStats")}
                 </p>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
@@ -666,14 +677,14 @@ export function Dashboard({
               <section>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-bold text-gray-900">
-                    Recent Jobs
+                    {t("dashboard.recentJobs")}
                   </h2>
                   <div className="w-full max-w-xs mx-4">
                     <input
                       type="text"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search by Job ID or Study name"
+                      placeholder={t("dashboard.searchPlaceholder")}
                       className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -681,7 +692,7 @@ export function Dashboard({
                     onClick={() => setActiveItem("Audit Trail")}
                     className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
                   >
-                    View Full Audit Trail →
+                    {t("dashboard.viewFullAuditTrail")} →
                   </button>
                 </div>
                 <RecentJobsTable
@@ -694,7 +705,10 @@ export function Dashboard({
           )}
 
           {activeItem === "Upload" && (
-            <UploadPage onStartMigration={startMigration} prefill={uploadPrefill} />
+            <UploadPage
+              onStartMigration={startMigration}
+              prefill={uploadPrefill}
+            />
           )}
 
           {activeItem === "Mapping" && (
