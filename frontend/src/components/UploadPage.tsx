@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ScheduledMigration } from "./MigrationProgressPanel";
 import { findMappingForStudy, recordMapping } from "../data/mappingHistory";
 
+// Backend endpoint that copies the uploaded source file into the local migration target folder.
+const BACKEND_BASE_URL = "http://localhost:8082";
+
 type DestinationTemplate = {
   study: string;
   country: string;
@@ -50,6 +53,11 @@ export function UploadPage({ onStartMigration, prefill }: UploadPageProps) {
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [vaultSite, setVaultSite] = useState("");
   const [vaultSubsite, setVaultSubsite] = useState("");
+  const [manualFile, setManualFile] = useState<File | null>(null);
+  const [metadataFile, setMetadataFile] = useState<File | null>(null);
+  const inboxFolderInputRef = useRef<HTMLInputElement | null>(null);
+  const manualFileInputRef = useRef<HTMLInputElement | null>(null);
+  const metadataFileInputRef = useRef<HTMLInputElement | null>(null);
   const [fileNamePattern, setFileNamePattern] = useState(
     "{study}_{country}_{docType}_{yyyymmdd}",
   );
@@ -252,7 +260,60 @@ export function UploadPage({ onStartMigration, prefill }: UploadPageProps) {
 
   const matchedPairCount = matchPairs.filter((pair) => pair.matched).length;
 
+  const hasSourceSelected =
+    source === "inbox" ? Boolean(folderPath.trim()) : Boolean(manualFile);
+  const hasDestinationSelected = Boolean(vaultSite) && Boolean(vaultSubsite);
+  const canStartMigration = hasSourceSelected && hasDestinationSelected;
+
+  const handleInboxFolderPicked = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const [firstFile] = event.target.files ?? [];
+    if (!firstFile) return;
+
+    const relativePath = firstFile.webkitRelativePath || firstFile.name;
+    const folderName = relativePath.split("/")[0] ?? relativePath;
+    setFolderPath(`/inbox/${folderName}/`);
+    event.target.value = "";
+  };
+
+  const handleManualFilePicked = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setManualFile(event.target.files?.[0] ?? null);
+    event.target.value = "";
+  };
+
+  const handleMetadataFilePicked = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setMetadataFile(event.target.files?.[0] ?? null);
+    event.target.value = "";
+  };
+
+  const [uploadStatus, setUploadStatus] = useState<
+    "idle" | "uploading" | "success" | "error"
+  >("idle");
+
   const startMigration = () => {
+    if (!canStartMigration) return;
+
+    if (source === "manual" && manualFile) {
+      const formData = new FormData();
+      formData.append("file", manualFile);
+
+      setUploadStatus("uploading");
+      fetch(`${BACKEND_BASE_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error("Upload failed");
+          setUploadStatus("success");
+        })
+        .catch(() => setUploadStatus("error"));
+    }
+
     const sourceFolder = source === "inbox" ? folderPath : "Manual Upload";
     const studiesToRun =
       selectedStudies.length > 0 ? selectedStudies : ["Unmapped Study"];
@@ -450,7 +511,18 @@ export function UploadPage({ onStartMigration, prefill }: UploadPageProps) {
                   onChange={(e) => setFolderPath(e.target.value)}
                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
+                <input
+                  ref={inboxFolderInputRef}
+                  type="file"
+                  className="hidden"
+                  // @ts-expect-error -- non-standard attributes enabling folder selection in Chromium browsers
+                  webkitdirectory="true"
+                  directory="true"
+                  onChange={handleInboxFolderPicked}
+                />
                 <button
+                  type="button"
+                  onClick={() => inboxFolderInputRef.current?.click()}
                   aria-label="Browse inbox folder"
                   className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
                 >
@@ -476,9 +548,40 @@ export function UploadPage({ onStartMigration, prefill }: UploadPageProps) {
                 Drag & drop ZIP file here
               </p>
               <p className="text-gray-400 text-xs mb-3">or</p>
-              <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+              <input
+                ref={manualFileInputRef}
+                type="file"
+                accept=".zip"
+                className="hidden"
+                onChange={handleManualFilePicked}
+              />
+              <button
+                type="button"
+                onClick={() => manualFileInputRef.current?.click()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
                 Browse Files
               </button>
+              {manualFile && (
+                <p className="text-xs text-gray-600 mt-3">
+                  Selected: <span className="font-semibold">{manualFile.name}</span>
+                </p>
+              )}
+              {uploadStatus === "uploading" && (
+                <p className="text-xs text-blue-600 mt-2">
+                  Transferring file to migration target folder...
+                </p>
+              )}
+              {uploadStatus === "success" && (
+                <p className="text-xs text-emerald-600 mt-2">
+                  ✅ File copied to C:\Users\DPatra5\Downloads\MigragionTarget
+                </p>
+              )}
+              {uploadStatus === "error" && (
+                <p className="text-xs text-rose-600 mt-2">
+                  ⚠️ Could not reach the backend to transfer the file. Ensure it is running on {BACKEND_BASE_URL}.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -489,13 +592,24 @@ export function UploadPage({ onStartMigration, prefill }: UploadPageProps) {
             Metadata Sheet
           </label>
           <div className="flex items-center gap-3">
+            <input
+              ref={metadataFileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={handleMetadataFilePicked}
+            />
             <button
+              type="button"
+              onClick={() => metadataFileInputRef.current?.click()}
               aria-label="Browse metadata file"
               className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
             >
               Browse
             </button>
-            <span className="text-sm text-gray-500">metadata.xlsx</span>
+            <span className="text-sm text-gray-500">
+              {metadataFile?.name ?? "metadata.xlsx"}
+            </span>
           </div>
         </div>
 
@@ -748,20 +862,36 @@ export function UploadPage({ onStartMigration, prefill }: UploadPageProps) {
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center justify-center gap-3 pt-2">
-          <button className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors">
-            Preview Files
-          </button>
-          <button
-            type="button"
-            onClick={startMigration}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-          >
-            ▶ Start Migration
-            {selectedStudies.length > 1
-              ? ` (${selectedStudies.length} jobs)`
-              : ""}
-          </button>
+        <div className="flex flex-col items-center gap-2 pt-2">
+          <div className="flex items-center justify-center gap-3">
+            <button className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors">
+              Preview Files
+            </button>
+            <button
+              type="button"
+              onClick={startMigration}
+              disabled={!canStartMigration}
+              className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                canStartMigration
+                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              ▶ Start Migration
+              {selectedStudies.length > 1
+                ? ` (${selectedStudies.length} jobs)`
+                : ""}
+            </button>
+          </div>
+          {!canStartMigration && (
+            <p className="text-xs text-amber-600">
+              {!hasSourceSelected
+                ? source === "inbox"
+                  ? "Browse and select an inbox folder to continue."
+                  : "Browse and select a file to upload to continue."
+                : "Select a Vault Site and Subsite to continue."}
+            </p>
+          )}
         </div>
       </div>
     </div>

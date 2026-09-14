@@ -262,6 +262,11 @@ export function Dashboard({
   const [mappingFocusFile, setMappingFocusFile] = useState<string | null>(null);
   const [uploadPrefill, setUploadPrefill] = useState<RemapPrefill | null>(null);
   const nextJobNumber = useRef(110);
+  const mainContentRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    mainContentRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [activeItem]);
 
   const selectedMigration =
     activeMigrations.find(
@@ -630,7 +635,7 @@ export function Dashboard({
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
+        <main ref={mainContentRef} className="flex-1 overflow-y-auto">
           {toastNotification && (
             <div
               className={`fixed right-5 top-16 z-30 rounded-xl border px-4 py-3 shadow-lg ${toastStyle[toastNotification.type].border} ${toastStyle[toastNotification.type].bg}`}
