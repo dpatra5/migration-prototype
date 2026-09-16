@@ -25,7 +25,7 @@ import {
   type ScheduledMigration,
 } from "./MigrationProgressPanel";
 import { UploadPage } from "./UploadPage";
-import { MappingPage } from "./MappingPage";
+import { MappingPage, type RemapPrefill } from "./MappingPage";
 import { ReviewPage } from "./ReviewPage";
 import { UnclassifiedDocsPage } from "./UnclassifiedDocsPage";
 import { AuditTrailPage } from "./AuditTrailPage";
@@ -34,6 +34,18 @@ import { UserManagementPage } from "./UserManagementPage";
 import { SettingsPage } from "./SettingsPage";
 import { BellIcon } from "./icons/BellIcon";
 import { ProfileMenu } from "./ProfileMenu";
+import { useLanguage } from "../i18n/LanguageContext";
+
+const navTranslationKeys: Partial<Record<AppPage, string>> = {
+  Dashboard: "nav.dashboard",
+  Upload: "nav.upload",
+  Mapping: "nav.mapping",
+  Review: "nav.review",
+  "Unclassified Docs": "nav.unclassifiedDocs",
+  "Audit Trail": "nav.auditTrail",
+  "User Management": "nav.userManagement",
+  Settings: "nav.settings",
+};
 
 const menuItems: {
   label: AppPage;
@@ -60,12 +72,6 @@ const menuItems: {
     activeBorder: "border-purple-500",
   },
   {
-    label: "Review",
-    icon: "👁️",
-    activeBg: "bg-amber-600/20",
-    activeBorder: "border-amber-500",
-  },
-  {
     label: "Unclassified Docs",
     icon: "📄",
     activeBg: "bg-orange-600/20",
@@ -83,12 +89,6 @@ const menuItems: {
     icon: "🧑‍💼",
     activeBg: "bg-cyan-600/20",
     activeBorder: "border-cyan-500",
-  },
-  {
-    label: "Settings",
-    icon: "⚙️",
-    activeBg: "bg-slate-600/20",
-    activeBorder: "border-slate-500",
   },
 ];
 
@@ -242,6 +242,7 @@ export function Dashboard({
   onAccessConfigChange,
   onSignOut,
 }: DashboardProps) {
+  const { t } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<AppPage>(
     accessConfig[currentRole].pages[0],
@@ -253,12 +254,20 @@ export function Dashboard({
   const [toastNotification, setToastNotification] =
     useState<AppNotification | null>(null);
   const [activeMigrations, setActiveMigrations] = useState<
-    Array<ScheduledMigration & { phase: SchedulerPhase }>
+    (ScheduledMigration & { phase: SchedulerPhase })[]
   >([]);
   const [selectedMigrationId, setSelectedMigrationId] = useState<string | null>(
     null,
   );
-  const nextJobNumber = useRef(105);
+  const [mappingFocusFile, setMappingFocusFile] = useState<string | null>(null);
+  const [uploadPrefill, setUploadPrefill] = useState<RemapPrefill | null>(null);
+  const nextJobNumber = useRef(110);
+  const migrationTimersRef = useRef<Map<string, number>>(new Map());
+  const mainContentRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    mainContentRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [activeItem]);
 
   const selectedMigration =
     activeMigrations.find(
@@ -286,53 +295,6 @@ export function Dashboard({
       setJobs((currentJobs) =>
         currentJobs.map((job) => (job.id === jobId ? { ...job, status } : job)),
       );
-    },
-    [],
-  );
-
-  const startMigration = useCallback(
-    (migrationDetails: Omit<ScheduledMigration, "id" | "startedAt">) => {
-      const now = new Date();
-      const jobId = `J-${nextJobNumber.current}`;
-      nextJobNumber.current += 1;
-      const migration = {
-        id: jobId,
-        ...migrationDetails,
-        startedAt: now.getTime(),
-      };
-      const notificationId = `N-${Date.now()}`;
-      const startedNotification: AppNotification = {
-        id: notificationId,
-        type: "info",
-        title: `Migration ${jobId} Started`,
-        message: `Migration started for ${migration.study}. Job ${jobId} is in progress.`,
-        time: formatNotificationTime(now),
-        read: false,
-        jobId,
-        migrationStatus: "in-progress",
-      };
-
-      setJobs((currentJobs) => [
-        {
-          id: jobId,
-          study: migration.study,
-          status: JobStatusValues.Running,
-          date: "03-Sep",
-          assignedBy: "Automatic Scheduler",
-        },
-        ...currentJobs,
-      ]);
-      setNotifications((currentNotifications) => [
-        startedNotification,
-        ...currentNotifications,
-      ]);
-      setToastNotification(startedNotification);
-      setActiveMigrations((currentMigrations) => [
-        ...currentMigrations,
-        { ...migration, phase: "running" },
-      ]);
-      setSelectedMigrationId((currentSelectedId) => currentSelectedId ?? jobId);
-      setActiveItem("Dashboard");
     },
     [],
   );
@@ -423,33 +385,119 @@ export function Dashboard({
     [],
   );
 
-  const handleMigrationComplete = useCallback(
+  const completeMigrationJob = useCallback(
     (jobId: string) => {
+      const timerId = migrationTimersRef.current.get(jobId);
+      if (timerId !== undefined) {
+        window.clearTimeout(timerId);
+        migrationTimersRef.current.delete(jobId);
+      }
+
+      updateJobStatus(jobId, JobStatusValues.Done);
       updateMigrationPhase(jobId, "complete");
-      updateJobStatus(jobId, JobStatusValues.Partial);
       updateMigrationNotification(
         jobId,
-        "partial",
-        "warning",
-        `Migration ${jobId} Partial`,
-        `Migration ${jobId} completed with partial success. Some files require review.`,
+        "completed",
+        "success",
+        `Migration ${jobId} Completed`,
+        `Migration ${jobId} finished successfully. 120 of 120 files migrated.`,
       );
       setToastNotification({
         id: `N-${Date.now()}`,
         type: "success",
         title: `Migration ${jobId} Completed`,
-        message: `Migration ${jobId} finished successfully. 114 of 120 files migrated; 6 files need review.`,
+        message: `Migration ${jobId} finished successfully. 120 of 120 files migrated.`,
         time: formatNotificationTime(new Date()),
         read: false,
         jobId,
-        migrationStatus: "partial",
+        migrationStatus: "completed",
       });
     },
-    [updateMigrationPhase, updateJobStatus, updateMigrationNotification],
+    [updateJobStatus, updateMigrationNotification, updateMigrationPhase],
+  );
+
+  const scheduleMigrationCompletion = useCallback(
+    (jobId: string) => {
+      const existingTimerId = migrationTimersRef.current.get(jobId);
+      if (existingTimerId !== undefined) {
+        window.clearTimeout(existingTimerId);
+      }
+
+      const timerId = window.setTimeout(() => {
+        completeMigrationJob(jobId);
+      }, 20_000);
+      migrationTimersRef.current.set(jobId, timerId);
+    },
+    [completeMigrationJob],
+  );
+
+  const startMigration = useCallback(
+    (migrationDetails: Omit<ScheduledMigration, "id" | "startedAt">) => {
+      const now = new Date();
+      const jobId = `J-${nextJobNumber.current}`;
+      nextJobNumber.current += 1;
+      const migration = {
+        id: jobId,
+        ...migrationDetails,
+        startedAt: now.getTime(),
+      };
+      const notificationId = `N-${Date.now()}`;
+      const startedNotification: AppNotification = {
+        id: notificationId,
+        type: "info",
+        title: `Migration ${jobId} Started`,
+        message: `Migration started for ${migration.study}. Job ${jobId} is in progress.`,
+        time: formatNotificationTime(now),
+        read: false,
+        jobId,
+        migrationStatus: "in-progress",
+      };
+
+      setJobs((currentJobs) => [
+        {
+          id: jobId,
+          study: migration.study,
+          status: JobStatusValues.Running,
+          date: "03-Sep",
+          assignedBy: "Automatic Scheduler",
+          totalFiles: 120,
+          successfulFiles: 0,
+          failedFiles: 0,
+        },
+        ...currentJobs,
+      ]);
+      setNotifications((currentNotifications) => [
+        startedNotification,
+        ...currentNotifications,
+      ]);
+      setToastNotification(startedNotification);
+      setActiveMigrations((currentMigrations) => [
+        ...currentMigrations,
+        { ...migration, phase: "running" },
+      ]);
+      setSelectedMigrationId(jobId);
+      setActiveItem("Dashboard");
+
+      scheduleMigrationCompletion(jobId);
+    },
+    [scheduleMigrationCompletion],
+  );
+
+  const handleMigrationComplete = useCallback(
+    (jobId: string) => {
+      completeMigrationJob(jobId);
+    },
+    [completeMigrationJob],
   );
 
   const revokeJob = useCallback(
     (jobId: string) => {
+      const timerId = migrationTimersRef.current.get(jobId);
+      if (timerId !== undefined) {
+        window.clearTimeout(timerId);
+        migrationTimersRef.current.delete(jobId);
+      }
+
       const isActive = activeMigrations.some(
         (migration) => migration.id === jobId,
       );
@@ -500,9 +548,19 @@ export function Dashboard({
         `Migration ${jobId} Retried`,
         `Migration ${jobId} has been retried and is now in progress.`,
       );
+      scheduleMigrationCompletion(jobId);
     },
-    [updateJobStatus, updateMigrationNotification],
+    [scheduleMigrationCompletion, updateJobStatus, updateMigrationNotification],
   );
+
+  useEffect(() => {
+    return () => {
+      migrationTimersRef.current.forEach((timerId) =>
+        window.clearTimeout(timerId),
+      );
+      migrationTimersRef.current.clear();
+    };
+  }, []);
 
   const availableMenuItems = menuItems.filter((item) =>
     canAccessPage(accessConfig, currentRole, item.label),
@@ -563,9 +621,7 @@ export function Dashboard({
                 </svg>
               )}
             </button>
-            <h1 className="text-base font-bold text-white">
-              Migration Utility
-            </h1>
+            <h1 className="text-base font-bold text-white">{t("appTitle")}</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -618,7 +674,7 @@ export function Dashboard({
                   }`}
                 >
                   <span className="w-5 text-center text-base">{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span>{t(navTranslationKeys[item.label] ?? item.label)}</span>
                 </button>
               );
             })}
@@ -626,7 +682,7 @@ export function Dashboard({
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 overflow-y-auto">
+        <main ref={mainContentRef} className="flex-1 overflow-y-auto">
           {toastNotification && (
             <div
               className={`fixed right-5 top-16 z-30 rounded-xl border px-4 py-3 shadow-lg ${toastStyle[toastNotification.type].border} ${toastStyle[toastNotification.type].bg}`}
@@ -648,10 +704,10 @@ export function Dashboard({
             <div className="px-6 py-3 space-y-6">
               <section>
                 <h2 className="text-lg font-bold text-gray-900 mb-1">
-                  Migration Overview
+                  {t("dashboard.migrationOverview")}
                 </h2>
                 <p className="text-gray-500 text-sm mb-4">
-                  Real-time migration statistics
+                  {t("dashboard.realTimeStats")}
                 </p>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
@@ -666,6 +722,7 @@ export function Dashboard({
                     migrationPhase={selectedMigrationPhase}
                     onJobComplete={handleMigrationComplete}
                     onRevoke={revokeJob}
+                    onSelectMigration={setSelectedMigrationId}
                   />
                 </div>
               </section>
@@ -673,14 +730,14 @@ export function Dashboard({
               <section>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-bold text-gray-900">
-                    Recent Jobs
+                    {t("dashboard.recentJobs")}
                   </h2>
                   <div className="w-full max-w-xs mx-4">
                     <input
                       type="text"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search by Job ID or Study name"
+                      placeholder={t("dashboard.searchPlaceholder")}
                       className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -688,7 +745,7 @@ export function Dashboard({
                     onClick={() => setActiveItem("Audit Trail")}
                     className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
                   >
-                    View Full Audit Trail →
+                    {t("dashboard.viewFullAuditTrail")} →
                   </button>
                 </div>
                 <RecentJobsTable
@@ -701,14 +758,39 @@ export function Dashboard({
           )}
 
           {activeItem === "Upload" && (
-            <UploadPage onStartMigration={startMigration} />
+            <UploadPage
+              onStartMigration={startMigration}
+              prefill={uploadPrefill}
+            />
           )}
 
-          {activeItem === "Mapping" && <MappingPage />}
+          {activeItem === "Mapping" && (
+            <MappingPage
+              focusedFileName={mappingFocusFile}
+              onClearFocus={() => setMappingFocusFile(null)}
+              onRemap={(prefill) => {
+                setUploadPrefill(prefill);
+                setActiveItem("Upload");
+              }}
+              onRetryMigration={(details) => {
+                startMigration({
+                  study: details.study,
+                  masterFolder: `${details.fileName} to ${details.site} / ${details.subsite}`,
+                });
+              }}
+            />
+          )}
 
           {activeItem === "Review" && <ReviewPage />}
 
-          {activeItem === "Unclassified Docs" && <UnclassifiedDocsPage />}
+          {activeItem === "Unclassified Docs" && (
+            <UnclassifiedDocsPage
+              onUpdateMetadata={(fileName) => {
+                setMappingFocusFile(fileName);
+                setActiveItem("Mapping");
+              }}
+            />
+          )}
 
           {activeItem === "Audit Trail" && <AuditTrailPage />}
 
@@ -729,13 +811,13 @@ export function Dashboard({
             />
           )}
 
-          {activeItem === "Settings" && (
+          {/* {activeItem === "Settings" && (
             <SettingsPage
               currentRole={currentRole}
               accessConfig={accessConfig}
               onAccessConfigChange={onAccessConfigChange}
             />
-          )}
+          )} */}
         </main>
       </div>
     </div>

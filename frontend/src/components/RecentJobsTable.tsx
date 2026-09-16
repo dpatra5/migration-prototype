@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import type { Job, JobStatus, JobLog } from "../types/index";
-import { mockJobLogs } from "../data/mockData";
+import { getJobLogs } from "../data/mockData";
 
 const logLevelStyle: Record<JobLog["level"], { color: string; label: string }> = {
   info:  { color: "text-blue-600",    label: "INFO" },
@@ -18,10 +18,6 @@ function statusStyle(s: JobStatus) {
     Revoked: { dot: "bg-gray-400",    bg: "bg-gray-100",   text: "text-gray-600" },
   };
   return map[s] ?? { dot: "bg-gray-400", bg: "bg-gray-50", text: "text-gray-600" };
-}
-
-function hasLogs(job: Job) {
-  return Boolean(mockJobLogs[job.id]);
 }
 
 const retryableStatuses: JobStatus[] = ["Failed", "Partial"];
@@ -152,22 +148,18 @@ export function RecentJobsTable({
                     <tr key={`${job.id}-logs`}>
                       <td colSpan={6} className="p-0">
                         <div className="bg-gray-900 text-gray-300 px-5 py-4 mx-3 mb-3 rounded-xl font-mono text-xs leading-relaxed max-h-64 overflow-y-auto">
-                          {hasLogs(job) ? (
-                            mockJobLogs[job.id].map((log, i) => {
-                              const ls = logLevelStyle[log.level];
-                              return (
-                                <div key={i} className="flex gap-3 py-0.5">
-                                  <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
-                                  <span className={`font-bold flex-shrink-0 w-12 ${ls.color}`}>[{ls.label}]</span>
-                                  <span className={log.level === "error" ? "text-rose-400" : log.level === "warn" ? "text-amber-400" : "text-gray-300"}>
-                                    {log.message}
-                                  </span>
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <p className="text-gray-500">No logs recorded for this job.</p>
-                          )}
+                          {getJobLogs(job).map((log, i) => {
+                            const ls = logLevelStyle[log.level];
+                            return (
+                              <div key={i} className="flex gap-3 py-0.5">
+                                <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
+                                <span className={`font-bold flex-shrink-0 w-12 ${ls.color}`}>[{ls.label}]</span>
+                                <span className={log.level === "error" ? "text-rose-400" : log.level === "warn" ? "text-amber-400" : "text-gray-300"}>
+                                  {log.message}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </td>
                     </tr>
