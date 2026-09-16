@@ -41,12 +41,8 @@ function getStaticJobStats(job: Job): JobStats {
   const successful = job.successfulFiles ?? 0;
   const failed = job.failedFiles ?? 0;
   const pending = Math.max(total - successful - failed, 0);
-  const measuredProgress =
-    total > 0 ? ((successful + failed) / total) * 100 : 0;
-  const progress =
-    measuredProgress > 0
-      ? measuredProgress
-      : statusFallbackProgress[job.status];
+  const measuredProgress = total > 0 ? ((successful + failed) / total) * 100 : 0;
+  const progress = measuredProgress > 0 ? measuredProgress : statusFallbackProgress[job.status];
   return { total, successful, failed, pending, progress };
 }
 
@@ -59,13 +55,7 @@ const statusRingColor: Record<JobStatus, string> = {
   Revoked: "#f97316",
 };
 
-function MiniCircularProgress({
-  progress,
-  status,
-}: {
-  progress: number;
-  status: JobStatus;
-}) {
+function MiniCircularProgress({ progress, status }: { progress: number; status: JobStatus }) {
   const radius = 18;
   const circumference = 2 * Math.PI * radius;
   const visibleProgress = Math.min(Math.max(progress, 5), 100);
@@ -75,14 +65,7 @@ function MiniCircularProgress({
   return (
     <div className="relative w-12 h-12 flex-shrink-0">
       <svg className="w-12 h-12 -rotate-90" viewBox="0 0 44 44">
-        <circle
-          cx="22"
-          cy="22"
-          r={radius}
-          stroke="#e5e7eb"
-          strokeWidth="4"
-          fill="none"
-        />
+        <circle cx="22" cy="22" r={radius} stroke="#e5e7eb" strokeWidth="4" fill="none" />
         <circle
           cx="22"
           cy="22"
@@ -97,9 +80,7 @@ function MiniCircularProgress({
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-[10px] font-semibold text-gray-700">
-          {Math.round(progress)}%
-        </span>
+        <span className="text-[10px] font-semibold text-gray-700">{Math.round(progress)}%</span>
       </div>
     </div>
   );
@@ -120,7 +101,6 @@ type MigrationProgressPanelProps = {
   migrationPhase: SchedulerPhase;
   onJobComplete: (jobId: string) => void;
   onRevoke: (jobId: string) => void;
-  onSelectMigration: (jobId: string) => void;
 };
 
 export function MigrationProgressPanel({
@@ -129,49 +109,19 @@ export function MigrationProgressPanel({
   migrationPhase,
   onJobComplete,
   onRevoke,
-  onSelectMigration,
 }: MigrationProgressPanelProps) {
-  const [miniProgressByJobId, setMiniProgressByJobId] = useState<
-    Record<string, number>
-  >({});
+  const [pinnedJobId, setPinnedJobId] = useState<string | null>(null);
 
   const [elapsedMs, setElapsedMs] = useState(() =>
     activeMigration && migrationPhase === "running"
-      ? Math.min(
-          Date.now() - activeMigration.startedAt,
-          migrationDefaults.durationMs,
-        )
+      ? Math.min(Date.now() - activeMigration.startedAt, migrationDefaults.durationMs)
       : migrationDefaults.durationMs,
   );
 
   useEffect(() => {
-    if (activeMigration && migrationPhase === "running") {
-      setElapsedMs(
-        Math.min(
-          Date.now() - activeMigration.startedAt,
-          migrationDefaults.durationMs,
-        ),
-      );
-      return;
-    }
-
-    if (migrationPhase === "complete") {
-      setElapsedMs(migrationDefaults.durationMs);
-      return;
-    }
-
-    setElapsedMs(migrationDefaults.durationMs);
-  }, [activeMigration?.id, migrationPhase]);
-
-  useEffect(() => {
     if (!activeMigration || migrationPhase !== "running") return;
     const timer = window.setInterval(() => {
-      setElapsedMs(
-        Math.min(
-          Date.now() - activeMigration.startedAt,
-          migrationDefaults.durationMs,
-        ),
-      );
+      setElapsedMs(Math.min(Date.now() - activeMigration.startedAt, migrationDefaults.durationMs));
     }, 250);
     return () => window.clearInterval(timer);
   }, [activeMigration, migrationPhase]);
@@ -183,82 +133,14 @@ export function MigrationProgressPanel({
     }
   }, [elapsedMs, activeMigration, migrationPhase, onJobComplete]);
 
-  const displayedJobId = activeMigration?.id ?? jobs[0]?.id ?? null;
-  const runningJobs = jobs.filter(
-    (job) =>
-      job.id !== displayedJobId && job.status === JobStatusValues.Running,
-  );
-
-  useEffect(() => {
-    setMiniProgressByJobId((current) => {
-      const nextProgress: Record<string, number> = {};
-      let changed = false;
-
-      runningJobs.forEach((job, index) => {
-        const existingProgress = current[job.id];
-        const seededProgress = 35 + ((index * 11) % 20);
-        nextProgress[job.id] =
-          existingProgress === undefined
-            ? seededProgress
-            : Math.min(existingProgress, 95);
-        if (existingProgress !== nextProgress[job.id]) {
-          changed = true;
-        }
-      });
-
-      const currentKeys = Object.keys(current);
-      if (currentKeys.length !== runningJobs.length) {
-        changed = true;
-      }
-
-      currentKeys.forEach((jobId) => {
-        if (!nextProgress[jobId]) {
-          changed = true;
-        }
-      });
-
-      return changed ? nextProgress : current;
-    });
-  }, [runningJobs]);
-
-  useEffect(() => {
-    if (runningJobs.length === 0) return;
-
-    const timer = window.setInterval(() => {
-      setMiniProgressByJobId((current) => {
-        const nextProgress: Record<string, number> = { ...current };
-        let changed = false;
-
-        runningJobs.forEach((job, index) => {
-          const currentProgress =
-            nextProgress[job.id] ?? 35 + ((index * 11) % 20);
-          const increment = 1 + (index % 3);
-          const updatedProgress = Math.min(currentProgress + increment, 95);
-          if (updatedProgress !== currentProgress) {
-            nextProgress[job.id] = updatedProgress;
-            changed = true;
-          }
-        });
-
-        return changed ? nextProgress : current;
-      });
-    }, 250);
-
-    return () => window.clearInterval(timer);
-  }, [runningJobs]);
-
   const liveRatio = Math.min(elapsedMs / migrationDefaults.durationMs, 1);
   const liveProcessed = Math.floor(migrationDefaults.totalFiles * liveRatio);
   const liveFailed =
     migrationPhase === "complete"
-      ? 0
+      ? migrationDefaults.failedFiles
       : Math.floor(migrationDefaults.failedFiles * liveRatio);
-  const liveSuccessful =
-    migrationPhase === "complete"
-      ? migrationDefaults.totalFiles
-      : Math.min(liveProcessed - liveFailed, migrationDefaults.successfulFiles);
-  const livePending =
-    migrationDefaults.totalFiles - liveSuccessful - liveFailed;
+  const liveSuccessful = Math.min(liveProcessed - liveFailed, migrationDefaults.successfulFiles);
+  const livePending = migrationDefaults.totalFiles - liveSuccessful - liveFailed;
 
   const liveStats: JobStats = {
     total: migrationDefaults.totalFiles,
@@ -269,21 +151,20 @@ export function MigrationProgressPanel({
   };
 
   const getJobStats = (job: Job): JobStats =>
-    activeMigration && job.id === activeMigration.id
-      ? liveStats
-      : getStaticJobStats(job);
+    activeMigration && job.id === activeMigration.id ? liveStats : getStaticJobStats(job);
 
   const getJobStatus = (job: Job): JobStatus =>
     activeMigration && job.id === activeMigration.id
       ? migrationPhase === "running"
         ? JobStatusValues.Running
         : migrationPhase === "complete"
-          ? JobStatusValues.Done
+          ? JobStatusValues.Partial
           : JobStatusValues.Pending
       : job.status;
 
-  const isLiveDisplay =
-    !!activeMigration && displayedJobId === activeMigration.id;
+  const defaultFocusId = activeMigration?.id ?? jobs[0]?.id ?? null;
+  const displayedJobId = pinnedJobId ?? defaultFocusId;
+  const isLiveDisplay = !!activeMigration && displayedJobId === activeMigration.id;
   const displayedJob = jobs.find((job) => job.id === displayedJobId) ?? null;
 
   const stats: JobStats = displayedJob
@@ -298,16 +179,15 @@ export function MigrationProgressPanel({
       ? migrationPhase === "running"
         ? JobStatusValues.Running
         : migrationPhase === "complete"
-          ? JobStatusValues.Done
+          ? JobStatusValues.Partial
           : JobStatusValues.Pending
       : JobStatusValues.Pending;
 
-  const otherJobs = jobs
-    .filter(
-      (job) =>
-        job.id !== displayedJobId && job.status !== JobStatusValues.Running,
-    )
-    .slice(0, 5);
+  const historyJobs = jobs.filter((job) => job.id !== displayedJobId).slice(0, 5);
+
+  const selectJob = (jobId: string) => {
+    setPinnedJobId(jobId);
+  };
 
   if (!displayedJobId) {
     return null;
@@ -319,14 +199,10 @@ export function MigrationProgressPanel({
         <div className="flex items-center justify-between mb-2">
           <div>
             <p className="text-xs text-gray-400">Job ID</p>
-            <p className="text-sm font-semibold text-gray-800">
-              {displayedJobId}
-            </p>
+            <p className="text-sm font-semibold text-gray-800">{displayedJobId}</p>
           </div>
           <div className="flex items-center gap-2">
-            <span
-              className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadgeClass[displayedStatus]}`}
-            >
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadgeClass[displayedStatus]}`}>
               {displayedStatus}
             </span>
             {isLiveDisplay && migrationPhase === "running" && (
@@ -357,15 +233,11 @@ export function MigrationProgressPanel({
           </div>
           <div>
             <p className="text-xs text-gray-400">Transferred</p>
-            <p className="text-sm font-semibold text-emerald-600">
-              {stats.successful}
-            </p>
+            <p className="text-sm font-semibold text-emerald-600">{stats.successful}</p>
           </div>
           <div>
             <p className="text-xs text-gray-400">Pending</p>
-            <p className="text-sm font-semibold text-amber-600">
-              {stats.pending}
-            </p>
+            <p className="text-sm font-semibold text-amber-600">{stats.pending}</p>
           </div>
         </div>
       </div>
@@ -374,81 +246,28 @@ export function MigrationProgressPanel({
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
           Previous Migrations
         </p>
-        {runningJobs.length === 0 && otherJobs.length === 0 ? (
+        {historyJobs.length === 0 ? (
           <p className="text-xs text-gray-400">No previous migrations yet.</p>
         ) : (
-          <div className="flex flex-col gap-4">
-            {runningJobs.length > 0 && (
-              <div>
-                <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide mb-2">
-                  Running Migrations
-                </p>
-                <div className="flex flex-col gap-2">
-                  {runningJobs.map((job) => {
-                    const jobStats = getJobStats(job);
-                    const jobStatus = getJobStatus(job);
-                    const miniProgress =
-                      miniProgressByJobId[job.id] ?? jobStats.progress;
-                    return (
-                      <button
-                        key={job.id}
-                        type="button"
-                        onClick={() => onSelectMigration(job.id)}
-                        className="flex items-center gap-2 p-2 rounded-xl border border-transparent hover:border-blue-200 hover:bg-blue-50 transition-colors text-left"
-                      >
-                        <MiniCircularProgress
-                          progress={miniProgress}
-                          status={jobStatus}
-                        />
-                        <div>
-                          <p className="text-xs font-semibold text-gray-800">
-                            {job.id}
-                          </p>
-                          <p className="text-[11px] text-gray-500">
-                            {job.study}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {otherJobs.length > 0 && (
-              <div>
-                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  Recent Migrations
-                </p>
-                <div className="flex flex-col gap-2">
-                  {otherJobs.map((job) => {
-                    const jobStats = getJobStats(job);
-                    const jobStatus = getJobStatus(job);
-                    return (
-                      <button
-                        key={job.id}
-                        type="button"
-                        onClick={() => onSelectMigration(job.id)}
-                        className="flex items-center gap-2 p-2 rounded-xl border border-transparent hover:border-gray-200 hover:bg-gray-50 transition-colors text-left"
-                      >
-                        <MiniCircularProgress
-                          progress={jobStats.progress}
-                          status={jobStatus}
-                        />
-                        <div>
-                          <p className="text-xs font-semibold text-gray-800">
-                            {job.id}
-                          </p>
-                          <p className="text-[11px] text-gray-500">
-                            {job.study}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+          <div className="flex flex-col gap-2">
+            {historyJobs.map((job) => {
+              const jobStats = getJobStats(job);
+              const jobStatus = getJobStatus(job);
+              return (
+                <button
+                  key={job.id}
+                  type="button"
+                  onClick={() => selectJob(job.id)}
+                  className="flex items-center gap-2 p-2 rounded-xl border border-transparent hover:border-gray-200 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <MiniCircularProgress progress={jobStats.progress} status={jobStatus} />
+                  <div>
+                    <p className="text-xs font-semibold text-gray-800">{job.id}</p>
+                    <p className="text-[11px] text-gray-500">{job.study}</p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
