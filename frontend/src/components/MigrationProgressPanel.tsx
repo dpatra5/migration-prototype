@@ -36,21 +36,32 @@ const statusFallbackProgress: Record<JobStatus, number> = {
 };
 
 function hasFinishedStatus(status: JobStatus) {
-  return status === JobStatusValues.Partial || status === JobStatusValues.Done || status === JobStatusValues.Failed;
+  return (
+    status === JobStatusValues.Partial ||
+    status === JobStatusValues.Done ||
+    status === JobStatusValues.Failed
+  );
 }
 
 function getStaticJobStats(job: Job): JobStats {
   const total = job.totalFiles ?? migrationDefaults.totalFiles;
-  const hasRecordedCounts = (job.successfulFiles ?? 0) > 0 || (job.failedFiles ?? 0) > 0;
-  const successful = hasFinishedStatus(job.status) && !hasRecordedCounts
-    ? migrationDefaults.successfulFiles
-    : job.successfulFiles ?? 0;
-  const failed = hasFinishedStatus(job.status) && !hasRecordedCounts
-    ? migrationDefaults.failedFiles
-    : job.failedFiles ?? 0;
+  const hasRecordedCounts =
+    (job.successfulFiles ?? 0) > 0 || (job.failedFiles ?? 0) > 0;
+  const successful =
+    hasFinishedStatus(job.status) && !hasRecordedCounts
+      ? migrationDefaults.successfulFiles
+      : (job.successfulFiles ?? 0);
+  const failed =
+    hasFinishedStatus(job.status) && !hasRecordedCounts
+      ? migrationDefaults.failedFiles
+      : (job.failedFiles ?? 0);
   const pending = Math.max(total - successful - failed, 0);
-  const measuredProgress = total > 0 ? ((successful + failed) / total) * 100 : 0;
-  const progress = measuredProgress > 0 ? measuredProgress : statusFallbackProgress[job.status];
+  const measuredProgress =
+    total > 0 ? ((successful + failed) / total) * 100 : 0;
+  const progress =
+    measuredProgress > 0
+      ? measuredProgress
+      : statusFallbackProgress[job.status];
 
   return { total, successful, failed, pending, progress };
 }
@@ -64,7 +75,13 @@ const statusRingColor: Record<JobStatus, string> = {
   Revoked: "#f97316",
 };
 
-function MiniCircularProgress({ progress, status }: { progress: number; status: JobStatus }) {
+function MiniCircularProgress({
+  progress,
+  status,
+}: {
+  progress: number;
+  status: JobStatus;
+}) {
   const radius = 18;
   const circumference = 2 * Math.PI * radius;
   const visibleProgress = Math.min(Math.max(progress, 5), 100);
@@ -74,7 +91,14 @@ function MiniCircularProgress({ progress, status }: { progress: number; status: 
   return (
     <div className="relative w-12 h-12 flex-shrink-0">
       <svg className="w-12 h-12 -rotate-90" viewBox="0 0 44 44">
-        <circle cx="22" cy="22" r={radius} stroke="#e5e7eb" strokeWidth="4" fill="none" />
+        <circle
+          cx="22"
+          cy="22"
+          r={radius}
+          stroke="#e5e7eb"
+          strokeWidth="4"
+          fill="none"
+        />
         <circle
           cx="22"
           cy="22"
@@ -89,7 +113,9 @@ function MiniCircularProgress({ progress, status }: { progress: number; status: 
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-[10px] font-semibold text-gray-700">{Math.round(progress)}%</span>
+        <span className="text-[10px] font-semibold text-gray-700">
+          {Math.round(progress)}%
+        </span>
       </div>
     </div>
   );
@@ -128,7 +154,10 @@ export function MigrationProgressPanel({
       const nextElapsed = { ...currentElapsed };
       activeMigrations.forEach((migration) => {
         if (!(migration.id in nextElapsed)) {
-          nextElapsed[migration.id] = Math.min(Date.now() - migration.startedAt, migrationDefaults.durationMs);
+          nextElapsed[migration.id] = Math.min(
+            Date.now() - migration.startedAt,
+            migrationDefaults.durationMs,
+          );
         }
       });
       return nextElapsed;
@@ -136,7 +165,9 @@ export function MigrationProgressPanel({
   }, [activeMigrations]);
 
   useEffect(() => {
-    const runningMigrations = activeMigrations.filter((migration) => migration.phase === "running");
+    const runningMigrations = activeMigrations.filter(
+      (migration) => migration.phase === "running",
+    );
     if (runningMigrations.length === 0) {
       return;
     }
@@ -145,7 +176,10 @@ export function MigrationProgressPanel({
       setElapsedMsMap((currentElapsed) => {
         const nextElapsed = { ...currentElapsed };
         runningMigrations.forEach((migration) => {
-          nextElapsed[migration.id] = Math.min(Date.now() - migration.startedAt, migrationDefaults.durationMs);
+          nextElapsed[migration.id] = Math.min(
+            Date.now() - migration.startedAt,
+            migrationDefaults.durationMs,
+          );
         });
         return nextElapsed;
       });
@@ -156,7 +190,10 @@ export function MigrationProgressPanel({
 
   useEffect(() => {
     activeMigrations.forEach((migration) => {
-      if (migration.phase === "running" && elapsedMsMap[migration.id] >= migrationDefaults.durationMs) {
+      if (
+        migration.phase === "running" &&
+        elapsedMsMap[migration.id] >= migrationDefaults.durationMs
+      ) {
         onJobComplete(migration.id);
       }
     });
@@ -166,18 +203,23 @@ export function MigrationProgressPanel({
     migration: ScheduledMigration & { phase: SchedulerPhase },
     elapsedMs: number,
   ): JobStats => {
-    const liveRatio = migration.phase === "complete"
-      ? 1
-      : Math.min(elapsedMs / migrationDefaults.durationMs, 1);
+    const liveRatio =
+      migration.phase === "complete"
+        ? 1
+        : Math.min(elapsedMs / migrationDefaults.durationMs, 1);
     const liveProcessed = Math.floor(migrationDefaults.totalFiles * liveRatio);
-    const liveFailed = migration.phase === "complete"
-      ? migrationDefaults.failedFiles
-      : Math.floor(migrationDefaults.failedFiles * liveRatio);
+    const liveFailed =
+      migration.phase === "complete"
+        ? migrationDefaults.failedFiles
+        : Math.floor(migrationDefaults.failedFiles * liveRatio);
     const liveSuccessful = Math.max(
       Math.min(liveProcessed - liveFailed, migrationDefaults.successfulFiles),
       0,
     );
-    const livePending = Math.max(migrationDefaults.totalFiles - liveSuccessful - liveFailed, 0);
+    const livePending = Math.max(
+      migrationDefaults.totalFiles - liveSuccessful - liveFailed,
+      0,
+    );
 
     return {
       total: migrationDefaults.totalFiles,
@@ -188,7 +230,9 @@ export function MigrationProgressPanel({
     };
   };
 
-  const getActiveMigrationStatus = (migration: ScheduledMigration & { phase: SchedulerPhase }): JobStatus =>
+  const getActiveMigrationStatus = (
+    migration: ScheduledMigration & { phase: SchedulerPhase },
+  ): JobStatus =>
     migration.phase === "running"
       ? JobStatusValues.Running
       : migration.phase === "complete"
@@ -205,30 +249,50 @@ export function MigrationProgressPanel({
       return secondJobNumber - firstJobNumber;
     })
     .slice(0, 5);
-  const displayedMigration = allMigrations.find((migration) => migration.id === selectedMigrationId) ?? allMigrations[0] ?? null;
+  const displayedMigration =
+    allMigrations.find((migration) => migration.id === selectedMigrationId) ??
+    allMigrations[0] ??
+    null;
   const displayedMigrationId = displayedMigration?.id ?? null;
 
   const getMigrationStats = (migration: ScheduledMigration | Job): JobStats => {
-    const activeMigration = activeMigrations.find((item) => item.id === migration.id);
+    const activeMigration = activeMigrations.find(
+      (item) => item.id === migration.id,
+    );
     if (activeMigration) {
-      return getActiveMigrationStats(activeMigration, elapsedMsMap[activeMigration.id] ?? 0);
+      return getActiveMigrationStats(
+        activeMigration,
+        elapsedMsMap[activeMigration.id] ?? 0,
+      );
     }
 
     const completedJob = jobs.find((job) => job.id === migration.id);
-    return completedJob ? getStaticJobStats(completedJob) : { total: 0, successful: 0, failed: 0, pending: 0, progress: 0 };
+    return completedJob
+      ? getStaticJobStats(completedJob)
+      : { total: 0, successful: 0, failed: 0, pending: 0, progress: 0 };
   };
 
-  const getMigrationStatus = (migration: ScheduledMigration | Job): JobStatus => {
-    const activeMigration = activeMigrations.find((item) => item.id === migration.id);
-    return activeMigration ? getActiveMigrationStatus(activeMigration) : (migration as Job).status ?? JobStatusValues.Pending;
+  const getMigrationStatus = (
+    migration: ScheduledMigration | Job,
+  ): JobStatus => {
+    const activeMigration = activeMigrations.find(
+      (item) => item.id === migration.id,
+    );
+    return activeMigration
+      ? getActiveMigrationStatus(activeMigration)
+      : ((migration as Job).status ?? JobStatusValues.Pending);
   };
 
   const displayedStats = displayedMigration
     ? getMigrationStats(displayedMigration)
     : { total: 0, successful: 0, failed: 0, pending: 0, progress: 0 };
-  const displayedStatus = displayedMigration ? getMigrationStatus(displayedMigration) : JobStatusValues.Pending;
+  const displayedStatus = displayedMigration
+    ? getMigrationStatus(displayedMigration)
+    : JobStatusValues.Pending;
   const selectedActiveMigration = displayedMigrationId
-    ? activeMigrations.find((migration) => migration.id === displayedMigrationId)
+    ? activeMigrations.find(
+        (migration) => migration.id === displayedMigrationId,
+      )
     : null;
 
   if (allMigrations.length === 0) {
@@ -243,10 +307,14 @@ export function MigrationProgressPanel({
             <div className="flex items-center justify-between mb-2">
               <div>
                 <p className="text-xs text-gray-400">Job ID</p>
-                <p className="text-sm font-semibold text-gray-800">{displayedMigration.id}</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {displayedMigration.id}
+                </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadgeClass[displayedStatus]}`}>
+                <span
+                  className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadgeClass[displayedStatus]}`}
+                >
                   {displayedStatus}
                 </span>
                 {selectedActiveMigration?.phase === "running" && (
@@ -273,15 +341,21 @@ export function MigrationProgressPanel({
             <div className="grid grid-cols-3 gap-2 text-center mt-3">
               <div>
                 <p className="text-xs text-gray-400">Total</p>
-                <p className="text-sm font-semibold text-gray-800">{displayedStats.total}</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {displayedStats.total}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-gray-400">Transferred</p>
-                <p className="text-sm font-semibold text-emerald-600">{displayedStats.successful}</p>
+                <p className="text-sm font-semibold text-emerald-600">
+                  {displayedStats.successful}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-gray-400">Pending</p>
-                <p className="text-sm font-semibold text-amber-600">{displayedStats.pending}</p>
+                <p className="text-sm font-semibold text-amber-600">
+                  {displayedStats.pending}
+                </p>
               </div>
             </div>
           </>
@@ -309,10 +383,17 @@ export function MigrationProgressPanel({
                     : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                 }`}
               >
-                <MiniCircularProgress progress={stats.progress} status={status} />
+                <MiniCircularProgress
+                  progress={stats.progress}
+                  status={status}
+                />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-800">{migration.id}</p>
-                  <p className="text-[11px] text-gray-500 truncate">{migration.study}</p>
+                  <p className="text-xs font-semibold text-gray-800">
+                    {migration.id}
+                  </p>
+                  <p className="text-[11px] text-gray-500 truncate">
+                    {migration.study}
+                  </p>
                 </div>
               </button>
             );

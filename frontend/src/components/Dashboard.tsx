@@ -462,7 +462,11 @@ export function Dashboard({
         migrationStatus: "partial",
       });
     },
-    [updateMigrationPhase, updateJobWithFinalStats, updateMigrationNotification],
+    [
+      updateMigrationPhase,
+      updateJobWithFinalStats,
+      updateMigrationNotification,
+    ],
   );
 
   const revokeJob = useCallback(
