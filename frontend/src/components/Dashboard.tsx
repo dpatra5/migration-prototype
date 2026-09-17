@@ -268,13 +268,6 @@ export function Dashboard({
     mainContentRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [activeItem]);
 
-  const selectedMigration =
-    activeMigrations.find(
-      (migration) => migration.id === selectedMigrationId,
-    ) ?? null;
-  const selectedMigrationPhase: SchedulerPhase =
-    selectedMigration?.phase ?? "running";
-
   const unreadNotificationCount = notifications.filter(
     (notification) => !notification.read,
   ).length;
@@ -293,6 +286,19 @@ export function Dashboard({
     (jobId: string, status: Job["status"]) => {
       setJobs((currentJobs) =>
         currentJobs.map((job) => (job.id === jobId ? { ...job, status } : job)),
+      );
+    },
+    [],
+  );
+
+  const updateJobWithFinalStats = useCallback(
+    (jobId: string, status: Job["status"]) => {
+      setJobs((currentJobs) =>
+        currentJobs.map((job) =>
+          job.id === jobId
+            ? { ...job, status, successfulFiles: 114, failedFiles: 6 }
+            : job,
+        ),
       );
     },
     [],
@@ -342,7 +348,7 @@ export function Dashboard({
         ...currentMigrations,
         { ...migration, phase: "running" },
       ]);
-      setSelectedMigrationId((currentSelectedId) => currentSelectedId ?? jobId);
+      setSelectedMigrationId(jobId);
       setActiveItem("Dashboard");
     },
     [],
@@ -437,7 +443,7 @@ export function Dashboard({
   const handleMigrationComplete = useCallback(
     (jobId: string) => {
       updateMigrationPhase(jobId, "complete");
-      updateJobStatus(jobId, JobStatusValues.Partial);
+      updateJobWithFinalStats(jobId, JobStatusValues.Partial);
       updateMigrationNotification(
         jobId,
         "partial",
@@ -456,7 +462,7 @@ export function Dashboard({
         migrationStatus: "partial",
       });
     },
-    [updateMigrationPhase, updateJobStatus, updateMigrationNotification],
+    [updateMigrationPhase, updateJobWithFinalStats, updateMigrationNotification],
   );
 
   const revokeJob = useCallback(
@@ -671,8 +677,9 @@ export function Dashboard({
                   />
                   <MigrationProgressPanel
                     jobs={jobs}
-                    activeMigration={selectedMigration}
-                    migrationPhase={selectedMigrationPhase}
+                    activeMigrations={activeMigrations}
+                    selectedMigrationId={selectedMigrationId}
+                    onSelectMigration={setSelectedMigrationId}
                     onJobComplete={handleMigrationComplete}
                     onRevoke={revokeJob}
                   />

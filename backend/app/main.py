@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Depends
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,9 @@ from .schemas import RecordOut, MigrationSummary
 from .worker import run_pull, retry_failed
 
 app = FastAPI(title="Migration Prototype Backend")
+
+# Local filesystem folder where files uploaded from the Upload page are copied.
+MIGRATION_TARGET_DIR = Path(r"C:\Users\DPatra5\Downloads\MigragionTarget")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,6 +30,18 @@ def on_startup():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/upload")
+def upload_file(file: UploadFile = File(...)):
+    """Copies an uploaded migration source file to the local migration target folder."""
+    MIGRATION_TARGET_DIR.mkdir(parents=True, exist_ok=True)
+    destination = MIGRATION_TARGET_DIR / file.filename
+
+    with destination.open("wb") as target:
+        target.write(file.file.read())
+
+    return {"status": "ok", "path": str(destination)}
 
 
 @app.post("/pull")

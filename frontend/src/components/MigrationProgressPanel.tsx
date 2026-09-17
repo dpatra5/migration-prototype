@@ -26,7 +26,6 @@ type JobStats = {
   progress: number;
 };
 
-// Statuses imply how far a job got when a job carries no usable file counts.
 const statusFallbackProgress: Record<JobStatus, number> = {
   Done: 100,
   Partial: 100,
@@ -36,13 +35,23 @@ const statusFallbackProgress: Record<JobStatus, number> = {
   Pending: 8,
 };
 
+function hasFinishedStatus(status: JobStatus) {
+  return status === JobStatusValues.Partial || status === JobStatusValues.Done || status === JobStatusValues.Failed;
+}
+
 function getStaticJobStats(job: Job): JobStats {
-  const total = job.totalFiles ?? 0;
-  const successful = job.successfulFiles ?? 0;
-  const failed = job.failedFiles ?? 0;
+  const total = job.totalFiles ?? migrationDefaults.totalFiles;
+  const hasRecordedCounts = (job.successfulFiles ?? 0) > 0 || (job.failedFiles ?? 0) > 0;
+  const successful = hasFinishedStatus(job.status) && !hasRecordedCounts
+    ? migrationDefaults.successfulFiles
+    : job.successfulFiles ?? 0;
+  const failed = hasFinishedStatus(job.status) && !hasRecordedCounts
+    ? migrationDefaults.failedFiles
+    : job.failedFiles ?? 0;
   const pending = Math.max(total - successful - failed, 0);
   const measuredProgress = total > 0 ? ((successful + failed) / total) * 100 : 0;
   const progress = measuredProgress > 0 ? measuredProgress : statusFallbackProgress[job.status];
+
   return { total, successful, failed, pending, progress };
 }
 
@@ -97,179 +106,218 @@ const statusBadgeClass: Record<JobStatus, string> = {
 
 type MigrationProgressPanelProps = {
   jobs: Job[];
-  activeMigration: ScheduledMigration | null;
-  migrationPhase: SchedulerPhase;
+  activeMigrations: (ScheduledMigration & { phase: SchedulerPhase })[];
+  selectedMigrationId: string | null;
+  onSelectMigration: (jobId: string) => void;
   onJobComplete: (jobId: string) => void;
   onRevoke: (jobId: string) => void;
 };
 
 export function MigrationProgressPanel({
   jobs,
-  activeMigration,
-  migrationPhase,
+  activeMigrations,
+  selectedMigrationId,
+  onSelectMigration,
   onJobComplete,
   onRevoke,
 }: MigrationProgressPanelProps) {
-  const [pinnedJobId, setPinnedJobId] = useState<string | null>(null);
-
-  const [elapsedMs, setElapsedMs] = useState(() =>
-    activeMigration && migrationPhase === "running"
-      ? Math.min(Date.now() - activeMigration.startedAt, migrationDefaults.durationMs)
-      : migrationDefaults.durationMs,
-  );
+  const [elapsedMsMap, setElapsedMsMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (!activeMigration || migrationPhase !== "running") return;
-    const timer = window.setInterval(() => {
-      setElapsedMs(Math.min(Date.now() - activeMigration.startedAt, migrationDefaults.durationMs));
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [activeMigration, migrationPhase]);
+    setElapsedMsMap((currentElapsed) => {
+      const nextElapsed = { ...currentElapsed };
+      activeMigrations.forEach((migration) => {
+        if (!(migration.id in nextElapsed)) {
+          nextElapsed[migration.id] = Math.min(Date.now() - migration.startedAt, migrationDefaults.durationMs);
+        }
+      });
+      return nextElapsed;
+    });
+  }, [activeMigrations]);
 
   useEffect(() => {
-    if (!activeMigration || migrationPhase !== "running") return;
-    if (elapsedMs >= migrationDefaults.durationMs) {
-      onJobComplete(activeMigration.id);
+    const runningMigrations = activeMigrations.filter((migration) => migration.phase === "running");
+    if (runningMigrations.length === 0) {
+      return;
     }
-  }, [elapsedMs, activeMigration, migrationPhase, onJobComplete]);
 
-  const liveRatio = Math.min(elapsedMs / migrationDefaults.durationMs, 1);
-  const liveProcessed = Math.floor(migrationDefaults.totalFiles * liveRatio);
-  const liveFailed =
-    migrationPhase === "complete"
+    const timer = window.setInterval(() => {
+      setElapsedMsMap((currentElapsed) => {
+        const nextElapsed = { ...currentElapsed };
+        runningMigrations.forEach((migration) => {
+          nextElapsed[migration.id] = Math.min(Date.now() - migration.startedAt, migrationDefaults.durationMs);
+        });
+        return nextElapsed;
+      });
+    }, 250);
+
+    return () => window.clearInterval(timer);
+  }, [activeMigrations]);
+
+  useEffect(() => {
+    activeMigrations.forEach((migration) => {
+      if (migration.phase === "running" && elapsedMsMap[migration.id] >= migrationDefaults.durationMs) {
+        onJobComplete(migration.id);
+      }
+    });
+  }, [activeMigrations, elapsedMsMap, onJobComplete]);
+
+  const getActiveMigrationStats = (
+    migration: ScheduledMigration & { phase: SchedulerPhase },
+    elapsedMs: number,
+  ): JobStats => {
+    const liveRatio = migration.phase === "complete"
+      ? 1
+      : Math.min(elapsedMs / migrationDefaults.durationMs, 1);
+    const liveProcessed = Math.floor(migrationDefaults.totalFiles * liveRatio);
+    const liveFailed = migration.phase === "complete"
       ? migrationDefaults.failedFiles
       : Math.floor(migrationDefaults.failedFiles * liveRatio);
-  const liveSuccessful = Math.min(liveProcessed - liveFailed, migrationDefaults.successfulFiles);
-  const livePending = migrationDefaults.totalFiles - liveSuccessful - liveFailed;
+    const liveSuccessful = Math.max(
+      Math.min(liveProcessed - liveFailed, migrationDefaults.successfulFiles),
+      0,
+    );
+    const livePending = Math.max(migrationDefaults.totalFiles - liveSuccessful - liveFailed, 0);
 
-  const liveStats: JobStats = {
-    total: migrationDefaults.totalFiles,
-    successful: liveSuccessful,
-    failed: liveFailed,
-    pending: livePending,
-    progress: liveRatio * 100,
+    return {
+      total: migrationDefaults.totalFiles,
+      successful: liveSuccessful,
+      failed: liveFailed,
+      pending: livePending,
+      progress: liveRatio * 100,
+    };
   };
 
-  const getJobStats = (job: Job): JobStats =>
-    activeMigration && job.id === activeMigration.id ? liveStats : getStaticJobStats(job);
+  const getActiveMigrationStatus = (migration: ScheduledMigration & { phase: SchedulerPhase }): JobStatus =>
+    migration.phase === "running"
+      ? JobStatusValues.Running
+      : migration.phase === "complete"
+        ? JobStatusValues.Partial
+        : JobStatusValues.Pending;
 
-  const getJobStatus = (job: Job): JobStatus =>
-    activeMigration && job.id === activeMigration.id
-      ? migrationPhase === "running"
-        ? JobStatusValues.Running
-        : migrationPhase === "complete"
-          ? JobStatusValues.Partial
-          : JobStatusValues.Pending
-      : job.status;
+  const completedJobs = jobs.filter(
+    (job) => !activeMigrations.some((migration) => migration.id === job.id),
+  );
+  const allMigrations = [...activeMigrations, ...completedJobs]
+    .sort((a, b) => {
+      const firstJobNumber = Number.parseInt(a.id.replace("J-", ""), 10);
+      const secondJobNumber = Number.parseInt(b.id.replace("J-", ""), 10);
+      return secondJobNumber - firstJobNumber;
+    })
+    .slice(0, 5);
+  const displayedMigration = allMigrations.find((migration) => migration.id === selectedMigrationId) ?? allMigrations[0] ?? null;
+  const displayedMigrationId = displayedMigration?.id ?? null;
 
-  const defaultFocusId = activeMigration?.id ?? jobs[0]?.id ?? null;
-  const displayedJobId = pinnedJobId ?? defaultFocusId;
-  const isLiveDisplay = !!activeMigration && displayedJobId === activeMigration.id;
-  const displayedJob = jobs.find((job) => job.id === displayedJobId) ?? null;
+  const getMigrationStats = (migration: ScheduledMigration | Job): JobStats => {
+    const activeMigration = activeMigrations.find((item) => item.id === migration.id);
+    if (activeMigration) {
+      return getActiveMigrationStats(activeMigration, elapsedMsMap[activeMigration.id] ?? 0);
+    }
 
-  const stats: JobStats = displayedJob
-    ? getJobStats(displayedJob)
-    : isLiveDisplay
-      ? liveStats
-      : { total: 0, successful: 0, failed: 0, pending: 0, progress: 0 };
-
-  const displayedStatus: JobStatus = displayedJob
-    ? getJobStatus(displayedJob)
-    : isLiveDisplay
-      ? migrationPhase === "running"
-        ? JobStatusValues.Running
-        : migrationPhase === "complete"
-          ? JobStatusValues.Partial
-          : JobStatusValues.Pending
-      : JobStatusValues.Pending;
-
-  const historyJobs = jobs.filter((job) => job.id !== displayedJobId).slice(0, 5);
-
-  const selectJob = (jobId: string) => {
-    setPinnedJobId(jobId);
+    const completedJob = jobs.find((job) => job.id === migration.id);
+    return completedJob ? getStaticJobStats(completedJob) : { total: 0, successful: 0, failed: 0, pending: 0, progress: 0 };
   };
 
-  if (!displayedJobId) {
+  const getMigrationStatus = (migration: ScheduledMigration | Job): JobStatus => {
+    const activeMigration = activeMigrations.find((item) => item.id === migration.id);
+    return activeMigration ? getActiveMigrationStatus(activeMigration) : (migration as Job).status ?? JobStatusValues.Pending;
+  };
+
+  const displayedStats = displayedMigration
+    ? getMigrationStats(displayedMigration)
+    : { total: 0, successful: 0, failed: 0, pending: 0, progress: 0 };
+  const displayedStatus = displayedMigration ? getMigrationStatus(displayedMigration) : JobStatusValues.Pending;
+  const selectedActiveMigration = displayedMigrationId
+    ? activeMigrations.find((migration) => migration.id === displayedMigrationId)
+    : null;
+
+  if (allMigrations.length === 0) {
     return null;
   }
 
   return (
     <div className="h-full bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col md:flex-row gap-5">
       <div className="w-full md:w-80 flex-shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <p className="text-xs text-gray-400">Job ID</p>
-            <p className="text-sm font-semibold text-gray-800">{displayedJobId}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadgeClass[displayedStatus]}`}>
-              {displayedStatus}
-            </span>
-            {isLiveDisplay && migrationPhase === "running" && (
-              <button
-                type="button"
-                onClick={() => onRevoke(activeMigration.id)}
-                className="px-3 py-1 rounded-lg text-xs font-medium bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
-              >
-                Revoke
-              </button>
-            )}
-          </div>
-        </div>
+        {displayedMigration ? (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-xs text-gray-400">Job ID</p>
+                <p className="text-sm font-semibold text-gray-800">{displayedMigration.id}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusBadgeClass[displayedStatus]}`}>
+                  {displayedStatus}
+                </span>
+                {selectedActiveMigration?.phase === "running" && (
+                  <button
+                    type="button"
+                    onClick={() => onRevoke(selectedActiveMigration.id)}
+                    className="px-3 py-1 rounded-lg text-xs font-medium bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
+                  >
+                    Revoke
+                  </button>
+                )}
+              </div>
+            </div>
 
-        <div className="flex justify-center py-2">
-          <CircularProgress
-            progress={stats.progress}
-            successfulFiles={stats.successful}
-            pendingFiles={stats.pending}
-            failedFiles={stats.failed}
-          />
-        </div>
+            <div className="flex justify-center py-2">
+              <CircularProgress
+                progress={displayedStats.progress}
+                successfulFiles={displayedStats.successful}
+                pendingFiles={displayedStats.pending}
+                failedFiles={displayedStats.failed}
+              />
+            </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center mt-2">
-          <div>
-            <p className="text-xs text-gray-400">Total</p>
-            <p className="text-sm font-semibold text-gray-800">{stats.total}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400">Transferred</p>
-            <p className="text-sm font-semibold text-emerald-600">{stats.successful}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400">Pending</p>
-            <p className="text-sm font-semibold text-amber-600">{stats.pending}</p>
-          </div>
-        </div>
+            <div className="grid grid-cols-3 gap-2 text-center mt-3">
+              <div>
+                <p className="text-xs text-gray-400">Total</p>
+                <p className="text-sm font-semibold text-gray-800">{displayedStats.total}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Transferred</p>
+                <p className="text-sm font-semibold text-emerald-600">{displayedStats.successful}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Pending</p>
+                <p className="text-sm font-semibold text-amber-600">{displayedStats.pending}</p>
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
 
       <div className="flex-1 min-w-0 border-t border-gray-100 pt-4 md:border-t-0 md:border-l md:pl-5 md:pt-0">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-          Previous Migrations
+          Recent Migrations
         </p>
-        {historyJobs.length === 0 ? (
-          <p className="text-xs text-gray-400">No previous migrations yet.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {historyJobs.map((job) => {
-              const jobStats = getJobStats(job);
-              const jobStatus = getJobStatus(job);
-              return (
-                <button
-                  key={job.id}
-                  type="button"
-                  onClick={() => selectJob(job.id)}
-                  className="flex items-center gap-2 p-2 rounded-xl border border-transparent hover:border-gray-200 hover:bg-gray-50 transition-colors text-left"
-                >
-                  <MiniCircularProgress progress={jobStats.progress} status={jobStatus} />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-800">{job.id}</p>
-                    <p className="text-[11px] text-gray-500">{job.study}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="flex flex-col gap-2">
+          {allMigrations.map((migration) => {
+            const stats = getMigrationStats(migration);
+            const status = getMigrationStatus(migration);
+            const isSelected = migration.id === displayedMigrationId;
+
+            return (
+              <button
+                key={migration.id}
+                type="button"
+                onClick={() => onSelectMigration(migration.id)}
+                className={`flex items-center gap-3 p-2 rounded-xl border transition-colors text-left ${
+                  isSelected
+                    ? "border-blue-200 bg-blue-50"
+                    : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <MiniCircularProgress progress={stats.progress} status={status} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-800">{migration.id}</p>
+                  <p className="text-[11px] text-gray-500 truncate">{migration.study}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
