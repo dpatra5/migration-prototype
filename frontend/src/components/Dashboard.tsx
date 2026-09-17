@@ -262,19 +262,11 @@ export function Dashboard({
   const [mappingFocusFile, setMappingFocusFile] = useState<string | null>(null);
   const [uploadPrefill, setUploadPrefill] = useState<RemapPrefill | null>(null);
   const nextJobNumber = useRef(110);
-  const migrationTimersRef = useRef<Map<string, number>>(new Map());
   const mainContentRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     mainContentRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [activeItem]);
-
-  const selectedMigration =
-    activeMigrations.find(
-      (migration) => migration.id === selectedMigrationId,
-    ) ?? null;
-  const selectedMigrationPhase: SchedulerPhase =
-    selectedMigration?.phase ?? "running";
 
   const unreadNotificationCount = notifications.filter(
     (notification) => !notification.read,
@@ -295,6 +287,69 @@ export function Dashboard({
       setJobs((currentJobs) =>
         currentJobs.map((job) => (job.id === jobId ? { ...job, status } : job)),
       );
+    },
+    [],
+  );
+
+  const updateJobWithFinalStats = useCallback(
+    (jobId: string, status: Job["status"]) => {
+      setJobs((currentJobs) =>
+        currentJobs.map((job) =>
+          job.id === jobId
+            ? { ...job, status, successfulFiles: 114, failedFiles: 6 }
+            : job,
+        ),
+      );
+    },
+    [],
+  );
+
+  const startMigration = useCallback(
+    (migrationDetails: Omit<ScheduledMigration, "id" | "startedAt">) => {
+      const now = new Date();
+      const jobId = `J-${nextJobNumber.current}`;
+      nextJobNumber.current += 1;
+      const migration = {
+        id: jobId,
+        ...migrationDetails,
+        startedAt: now.getTime(),
+      };
+      const notificationId = `N-${Date.now()}`;
+      const startedNotification: AppNotification = {
+        id: notificationId,
+        type: "info",
+        title: `Migration ${jobId} Started`,
+        message: `Migration started for ${migration.study}. Job ${jobId} is in progress.`,
+        time: formatNotificationTime(now),
+        read: false,
+        jobId,
+        migrationStatus: "in-progress",
+      };
+
+      setJobs((currentJobs) => [
+        {
+          id: jobId,
+          study: migration.study,
+          status: JobStatusValues.Running,
+          date: "03-Sep",
+          assignedBy: "Automatic Scheduler",
+          totalFiles: 120,
+          successfulFiles: 0,
+          failedFiles: 0,
+        },
+        ...currentJobs,
+      ]);
+      setNotifications((currentNotifications) => [
+        startedNotification,
+        ...currentNotifications,
+      ]);
+      setToastNotification(startedNotification);
+      setActiveMigrations((currentMigrations) => [
+        ...currentMigrations,
+        { ...migration, phase: "running" },
+      ]);
+      setSelectedMigrationId(jobId);
+      setActiveItem("Dashboard");
     },
     [],
   );
@@ -385,119 +440,33 @@ export function Dashboard({
     [],
   );
 
-  const completeMigrationJob = useCallback(
+  const handleMigrationComplete = useCallback(
     (jobId: string) => {
-      const timerId = migrationTimersRef.current.get(jobId);
-      if (timerId !== undefined) {
-        window.clearTimeout(timerId);
-        migrationTimersRef.current.delete(jobId);
-      }
-
-      updateJobStatus(jobId, JobStatusValues.Done);
       updateMigrationPhase(jobId, "complete");
+      updateJobWithFinalStats(jobId, JobStatusValues.Partial);
       updateMigrationNotification(
         jobId,
-        "completed",
-        "success",
-        `Migration ${jobId} Completed`,
-        `Migration ${jobId} finished successfully. 120 of 120 files migrated.`,
+        "partial",
+        "warning",
+        `Migration ${jobId} Partial`,
+        `Migration ${jobId} completed with partial success. Some files require review.`,
       );
       setToastNotification({
         id: `N-${Date.now()}`,
         type: "success",
         title: `Migration ${jobId} Completed`,
-        message: `Migration ${jobId} finished successfully. 120 of 120 files migrated.`,
+        message: `Migration ${jobId} finished successfully. 114 of 120 files migrated; 6 files need review.`,
         time: formatNotificationTime(new Date()),
         read: false,
         jobId,
-        migrationStatus: "completed",
+        migrationStatus: "partial",
       });
     },
-    [updateJobStatus, updateMigrationNotification, updateMigrationPhase],
-  );
-
-  const scheduleMigrationCompletion = useCallback(
-    (jobId: string) => {
-      const existingTimerId = migrationTimersRef.current.get(jobId);
-      if (existingTimerId !== undefined) {
-        window.clearTimeout(existingTimerId);
-      }
-
-      const timerId = window.setTimeout(() => {
-        completeMigrationJob(jobId);
-      }, 20_000);
-      migrationTimersRef.current.set(jobId, timerId);
-    },
-    [completeMigrationJob],
-  );
-
-  const startMigration = useCallback(
-    (migrationDetails: Omit<ScheduledMigration, "id" | "startedAt">) => {
-      const now = new Date();
-      const jobId = `J-${nextJobNumber.current}`;
-      nextJobNumber.current += 1;
-      const migration = {
-        id: jobId,
-        ...migrationDetails,
-        startedAt: now.getTime(),
-      };
-      const notificationId = `N-${Date.now()}`;
-      const startedNotification: AppNotification = {
-        id: notificationId,
-        type: "info",
-        title: `Migration ${jobId} Started`,
-        message: `Migration started for ${migration.study}. Job ${jobId} is in progress.`,
-        time: formatNotificationTime(now),
-        read: false,
-        jobId,
-        migrationStatus: "in-progress",
-      };
-
-      setJobs((currentJobs) => [
-        {
-          id: jobId,
-          study: migration.study,
-          status: JobStatusValues.Running,
-          date: "03-Sep",
-          assignedBy: "Automatic Scheduler",
-          totalFiles: 120,
-          successfulFiles: 0,
-          failedFiles: 0,
-        },
-        ...currentJobs,
-      ]);
-      setNotifications((currentNotifications) => [
-        startedNotification,
-        ...currentNotifications,
-      ]);
-      setToastNotification(startedNotification);
-      setActiveMigrations((currentMigrations) => [
-        ...currentMigrations,
-        { ...migration, phase: "running" },
-      ]);
-      setSelectedMigrationId(jobId);
-      setActiveItem("Dashboard");
-
-      scheduleMigrationCompletion(jobId);
-    },
-    [scheduleMigrationCompletion],
-  );
-
-  const handleMigrationComplete = useCallback(
-    (jobId: string) => {
-      completeMigrationJob(jobId);
-    },
-    [completeMigrationJob],
+    [updateMigrationPhase, updateJobWithFinalStats, updateMigrationNotification],
   );
 
   const revokeJob = useCallback(
     (jobId: string) => {
-      const timerId = migrationTimersRef.current.get(jobId);
-      if (timerId !== undefined) {
-        window.clearTimeout(timerId);
-        migrationTimersRef.current.delete(jobId);
-      }
-
       const isActive = activeMigrations.some(
         (migration) => migration.id === jobId,
       );
@@ -548,19 +517,9 @@ export function Dashboard({
         `Migration ${jobId} Retried`,
         `Migration ${jobId} has been retried and is now in progress.`,
       );
-      scheduleMigrationCompletion(jobId);
     },
-    [scheduleMigrationCompletion, updateJobStatus, updateMigrationNotification],
+    [updateJobStatus, updateMigrationNotification],
   );
-
-  useEffect(() => {
-    return () => {
-      migrationTimersRef.current.forEach((timerId) =>
-        window.clearTimeout(timerId),
-      );
-      migrationTimersRef.current.clear();
-    };
-  }, []);
 
   const availableMenuItems = menuItems.filter((item) =>
     canAccessPage(accessConfig, currentRole, item.label),
@@ -718,11 +677,11 @@ export function Dashboard({
                   />
                   <MigrationProgressPanel
                     jobs={jobs}
-                    activeMigration={selectedMigration}
-                    migrationPhase={selectedMigrationPhase}
+                    activeMigrations={activeMigrations}
+                    selectedMigrationId={selectedMigrationId}
+                    onSelectMigration={setSelectedMigrationId}
                     onJobComplete={handleMigrationComplete}
                     onRevoke={revokeJob}
-                    onSelectMigration={setSelectedMigrationId}
                   />
                 </div>
               </section>
