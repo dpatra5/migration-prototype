@@ -35,6 +35,8 @@ _JOBS_HEADERS = [
     "Size match",
     "Status",
     "Notes",
+    "Mapped docs",
+    "Unclassified docs",
 ]
 
 _DOC_HEADERS = [
@@ -138,6 +140,8 @@ class TransferReporter:
         status: str,
         notes: str = "",
         started_at: str | None = None,
+        mapped_count: int = 0,
+        unclassified_count: int = 0,
     ) -> str:
         src_count, src_size, _src_docs = self.zip_totals(zip_path)
         dest_count, dest_size, dest_docs = self.folder_totals(extracted_dir)
@@ -164,6 +168,8 @@ class TransferReporter:
                     src_size == dest_size,
                     status,
                     notes,
+                    mapped_count,
+                    unclassified_count,
                 ]
             )
             docs_sheet = self._get_or_create_docs_sheet(wb, study_name)
@@ -189,7 +195,8 @@ class TransferReporter:
         return job_id
 
     def record_direct_transfer(
-        self, source_path: Path, dest_path: Path, status: str = "TRANSFERRED", notes: str = ""
+        self, source_path: Path, dest_path: Path, status: str = "TRANSFERRED", notes: str = "",
+        mapped_count: int = 0, unclassified_count: int = 0,
     ) -> str:
         try:
             src_size = source_path.stat().st_size if source_path.exists() else dest_path.stat().st_size
@@ -221,10 +228,64 @@ class TransferReporter:
                     src_size == dest_size,
                     status,
                     notes,
+                    mapped_count,
+                    unclassified_count,
                 ]
             )
             docs_sheet = self._get_or_create_docs_sheet(wb, "_Direct")
             docs_sheet.append([job_id, finished, dest_path.name, dest_size, "FILE", status])
+            self._autosize(jobs)
+            self._autosize(docs_sheet)
+            save_workbook_with_retry(wb, self.report_path)
+        return job_id
+
+    def record_folder_job(
+        self,
+        study_name: str,
+        source_name: str,
+        extracted_dir: Path,
+        status: str,
+        notes: str = "",
+        started_at: str | None = None,
+        mapped_count: int = 0,
+        unclassified_count: int = 0,
+    ) -> str:
+        """Log a job for a pre-unzipped folder ingestion (no ZIP source)."""
+        dest_count, dest_size, dest_docs = self.folder_totals(extracted_dir)
+        finished = self._now()
+        started = started_at or finished
+
+        with self._lock:
+            wb = load_workbook_with_retry(self.report_path)
+            jobs = self._get_or_create_jobs_sheet(wb)
+            job_id = self._next_job_id(jobs)
+            jobs.append(
+                [
+                    job_id,
+                    started,
+                    finished,
+                    study_name,
+                    source_name,
+                    "FOLDER",
+                    dest_count,
+                    dest_count,
+                    True,
+                    dest_size,
+                    dest_size,
+                    True,
+                    status,
+                    notes,
+                    mapped_count,
+                    unclassified_count,
+                ]
+            )
+            docs_sheet = self._get_or_create_docs_sheet(wb, study_name)
+            for path, size in dest_docs:
+                try:
+                    rel = path.relative_to(extracted_dir)
+                except ValueError:
+                    rel = path
+                docs_sheet.append([job_id, finished, str(rel), size, "FOLDER", "TRANSFERRED"])
             self._autosize(jobs)
             self._autosize(docs_sheet)
             save_workbook_with_retry(wb, self.report_path)
@@ -244,12 +305,24 @@ class TransferReporter:
 
     def _get_or_create_jobs_sheet(self, wb: Workbook):
         if _JOBS_SHEET in wb.sheetnames:
-            return wb[_JOBS_SHEET]
+            ws = wb[_JOBS_SHEET]
+            self._ensure_headers(ws, _JOBS_HEADERS)
+            return ws
         ws = wb.create_sheet(title=_JOBS_SHEET, index=0)
         ws.append(_JOBS_HEADERS)
         for cell in ws[1]:
             cell.font = Font(bold=True)
         return ws
+
+    @staticmethod
+    def _ensure_headers(ws, expected: list[str]) -> None:
+        """Extend the sheet header row with any missing trailing columns."""
+        current = [c.value for c in ws[1]] if ws.max_row >= 1 else []
+        if len(current) >= len(expected):
+            return
+        for idx in range(len(current), len(expected)):
+            cell = ws.cell(row=1, column=idx + 1, value=expected[idx])
+            cell.font = Font(bold=True)
 
     def _get_or_create_docs_sheet(self, wb: Workbook, study_name: str):
         title = self._safe_sheet_name(study_name)

@@ -28,10 +28,11 @@ class SchedulerService:
         self._log = get_logger()
 
         self.registry = ProcessingRegistry(self.config.registry_path)
-        self.extractor = ZipExtractor(self.config.destination_folder)
+        self.extractor = ZipExtractor(self.config.extracted_folder)
         self.archiver = ArchiveManager(self.config.archive_folder, self.config.failed_folder)
-        self.reporter = ExcelReporter(self.config.report_path, self.config.destination_folder)
+        self.reporter = ExcelReporter(self.config.report_path, self.config.extracted_folder)
         self.transfer_reporter = TransferReporter(self.config.transfer_report_path)
+        self._build_tmf_hierarchy()
         self.watcher = FolderWatcher(
             self.config,
             self.registry,
@@ -90,3 +91,19 @@ class SchedulerService:
         if self._scheduler.running:
             self._log.info("Shutting down ZIP pipeline scheduler")
             self._scheduler.shutdown(wait=wait)
+
+    def _build_tmf_hierarchy(self) -> None:
+        """One-time (idempotent) creation of the TMF hierarchy in destination_folder."""
+        try:
+            from mapping import build_hierarchy
+        except ImportError as exc:
+            self._log.error("TMF mapping module unavailable, skipping hierarchy build: %s", exc)
+            return
+        try:
+            zones, sections, artifacts, unc = build_hierarchy(self.config.destination_folder)
+            self._log.info(
+                "TMF hierarchy ready at %s (created zones=%d sections=%d artifacts=%d unclassified=%d)",
+                self.config.destination_folder, zones, sections, artifacts, unc,
+            )
+        except Exception as exc:
+            self._log.exception("Failed to build TMF hierarchy: %s", exc)

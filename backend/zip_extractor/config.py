@@ -8,6 +8,7 @@ from pathlib import Path
 
 DEFAULT_SOURCE = r"C:\Users\ADas155\QuIn\POC\Source"
 DEFAULT_DESTINATION = r"C:\Users\ADas155\QuIn\POC\Destination"
+DEFAULT_EXTRACTED = r"C:\Users\ADas155\QuIn\POC\Extracted_Folders"
 DEFAULT_ARCHIVE = r"C:\Users\ADas155\QuIn\POC\Archive"
 DEFAULT_POLLING_MINUTES = 5
 DEFAULT_REPORT_MINUTES = 60
@@ -16,7 +17,8 @@ DEFAULT_REPORT_MINUTES = 60
 @dataclass(frozen=True)
 class PipelineConfig:
     source_folder: Path
-    destination_folder: Path
+    destination_folder: Path        # TMF-mapped output root
+    extracted_folder: Path          # Raw unzipped content lands here
     archive_folder: Path
     failed_folder: Path
     registry_path: Path
@@ -29,6 +31,7 @@ class PipelineConfig:
         for p in (
             self.source_folder,
             self.destination_folder,
+            self.extracted_folder,
             self.archive_folder,
             self.failed_folder,
         ):
@@ -39,6 +42,7 @@ class PipelineConfig:
 def load_config(
     source_folder: str | os.PathLike[str] | None = None,
     destination_folder: str | os.PathLike[str] | None = None,
+    extracted_folder: str | os.PathLike[str] | None = None,
     archive_folder: str | os.PathLike[str] | None = None,
     polling_interval_minutes: int | None = None,
     failed_folder: str | os.PathLike[str] | None = None,
@@ -51,6 +55,7 @@ def load_config(
 
     source = Path(source_folder or os.getenv("SOURCE_FOLDER", DEFAULT_SOURCE))
     dest = Path(destination_folder or os.getenv("DESTINATION_FOLDER", DEFAULT_DESTINATION))
+    extracted = Path(extracted_folder or os.getenv("EXTRACTED_FOLDER", DEFAULT_EXTRACTED))
     archive = Path(archive_folder or os.getenv("ARCHIVE_FOLDER", DEFAULT_ARCHIVE))
     failed = Path(failed_folder or os.getenv("FAILED_FOLDER", str(archive / "_Failed")))
     registry = Path(
@@ -59,11 +64,11 @@ def load_config(
     )
     report = Path(
         report_path
-        or os.getenv("REPORT_PATH", str(dest / "extraction_report.xlsx"))
+        or os.getenv("REPORT_PATH", str(extracted / "extraction_report.xlsx"))
     )
     transfer = Path(
         transfer_report_path
-        or os.getenv("TRANSFER_REPORT_PATH", str(dest / "transfer_report.xlsx"))
+        or os.getenv("TRANSFER_REPORT_PATH", str(extracted / "transfer_report.xlsx"))
     )
 
     interval_env = os.getenv("POLLING_INTERVAL")
@@ -87,6 +92,7 @@ def load_config(
     return PipelineConfig(
         source_folder=source,
         destination_folder=dest,
+        extracted_folder=extracted,
         archive_folder=archive,
         failed_folder=failed,
         registry_path=registry,
