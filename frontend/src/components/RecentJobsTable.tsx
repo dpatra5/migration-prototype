@@ -29,7 +29,7 @@ export function RecentJobsTable({
 }: {
   jobs: Job[];
   onRevoke: (jobId: string) => void;
-  onRetry: (jobId: string) => void;
+  onRetry: (job: Job) => void;
 }) {
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
 
@@ -69,7 +69,7 @@ export function RecentJobsTable({
                   actionHandler = () => onRevoke(job.id);
                 } else if (retryableStatuses.includes(job.status)) {
                   actionLabel = "Retry";
-                  actionHandler = () => onRetry(job.id);
+                  actionHandler = () => onRetry(job);
                 }
               }
 

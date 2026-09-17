@@ -273,7 +273,13 @@ export function Dashboard({
   ).length;
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const bellBadgeCount = formatBellBadgeCount(unreadNotificationCount);
-  const recentJobs = jobs.slice(0, 10);
+  const recentJobs = jobs
+    .sort((a, b) => {
+      const numA = parseInt(a.id.replace("J-", ""), 10);
+      const numB = parseInt(b.id.replace("J-", ""), 10);
+      return numB - numA; // Descending order
+    })
+    .slice(0, 10);
   const filteredJobs = normalizedSearch
     ? recentJobs.filter(
         (job) =>
@@ -508,17 +514,30 @@ export function Dashboard({
   );
 
   const retryJob = useCallback(
-    (jobId: string) => {
-      updateJobStatus(jobId, JobStatusValues.Running);
+    (job: Job) => {
+      // For Partial status jobs, start new migration with circular progress
+      if (job.status === JobStatusValues.Partial) {
+        // Start the migration process with circular progress
+        startMigration({
+          study: job.study,
+          masterFolder: job.study,
+        });
+        // Scroll to top of dashboard
+        mainContentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      // For other retryable statuses (Failed), update status and retry
+      updateJobStatus(job.id, JobStatusValues.Running);
       updateMigrationNotification(
-        jobId,
+        job.id,
         "in-progress",
         "info",
-        `Migration ${jobId} Retried`,
-        `Migration ${jobId} has been retried and is now in progress.`,
+        `Migration ${job.id} Retried`,
+        `Migration ${job.id} has been retried and is now in progress.`,
       );
     },
-    [updateJobStatus, updateMigrationNotification],
+    [updateJobStatus, updateMigrationNotification, startMigration],
   );
 
   const availableMenuItems = menuItems.filter((item) =>
