@@ -17,6 +17,7 @@ import {
   type Job,
   type NotificationType,
 } from "../types/index";
+import { useDashboardData } from "../hooks/useDashboardData";
 import { MetricsOverview } from "./MetricsOverview";
 import { RecentJobsTable } from "./RecentJobsTable";
 import {
@@ -243,6 +244,7 @@ export function Dashboard({
   onSignOut,
 }: DashboardProps) {
   const { t } = useLanguage();
+  const live = useDashboardData();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<AppPage>(
     accessConfig[currentRole].pages[0],
@@ -268,17 +270,44 @@ export function Dashboard({
     mainContentRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [activeItem]);
 
+  // Merge backend jobs into local state so runtime-added migrations survive.
+  useEffect(() => {
+    if (!live.online) return;
+    setJobs((current) => {
+      const localOnly = current.filter(
+        (job) =>
+          !live.jobs.some((liveJob) => liveJob.id === job.id) &&
+          job.id.startsWith("J-1"),
+      );
+      const merged = [...live.jobs, ...localOnly];
+      // Sort by date desc; use the full timestamp when available, fall back to id order.
+      const tsOf = (job: Job) => {
+        const raw = job.sortAt ?? job.date ?? "";
+        const t = Date.parse(raw);
+        return Number.isFinite(t) ? t : Number.NEGATIVE_INFINITY;
+      };
+      merged.sort((a, b) => {
+        const diff = tsOf(b) - tsOf(a);
+        return diff !== 0 ? diff : b.id.localeCompare(a.id);
+      });
+      return merged;
+    });
+  }, [live.online, live.jobs]);
+
+  const dashboardMetrics =
+    live.online && live.metrics ? live.metrics : mockMetrics;
+
   const unreadNotificationCount = notifications.filter(
     (notification) => !notification.read,
   ).length;
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const bellBadgeCount = formatBellBadgeCount(unreadNotificationCount);
+  // A job currently shown in the "Mapping in progress" banner (and the
+  // Recent Migrations panel) should not also appear as a separate row in the
+  // Recent Jobs table, otherwise the same J-ID looks duplicated.
+  const activeLiveJobIds = new Set(live.active.map((job) => job.id));
   const recentJobs = jobs
-    .sort((a, b) => {
-      const numA = parseInt(a.id.replace("J-", ""), 10);
-      const numB = parseInt(b.id.replace("J-", ""), 10);
-      return numB - numA; // Descending order
-    })
+    .filter((job) => !activeLiveJobIds.has(job.id))
     .slice(0, 10);
   const filteredJobs = normalizedSearch
     ? recentJobs.filter(
@@ -338,6 +367,7 @@ export function Dashboard({
           study: migration.study,
           status: JobStatusValues.Running,
           date: "03-Sep",
+          sortAt: now.toISOString(),
           assignedBy: "Automatic Scheduler",
           totalFiles: 120,
           successfulFiles: 0,
@@ -468,7 +498,11 @@ export function Dashboard({
         migrationStatus: "partial",
       });
     },
-    [updateMigrationPhase, updateJobWithFinalStats, updateMigrationNotification],
+    [
+      updateMigrationPhase,
+      updateJobWithFinalStats,
+      updateMigrationNotification,
+    ],
   );
 
   const revokeJob = useCallback(
@@ -711,17 +745,139 @@ export function Dashboard({
 
           {activeItem === "Dashboard" && (
             <div className="px-6 py-3 space-y-6">
+              {live.mapping &&
+                (() => {
+                  const active = live.active[0];
+                  const total = active?.totalFiles ?? 0;
+                  const mapped =
+                    active?.mappedFiles ?? active?.successfulFiles ?? 0;
+                  const unclassified = active?.unclassifiedFiles ?? 0;
+                  const transferred =
+                    active?.destinationFiles ?? mapped + unclassified;
+                  const pct =
+                    total > 0
+                      ? Math.min(100, Math.round((transferred / total) * 100))
+                      : 0;
+                  return (
+                    <div className="relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 px-5 py-4 shadow-sm">
+                      <div className="flex items-center gap-4">
+                        <span className="relative inline-flex h-10 w-10 items-center justify-center">
+                          <span className="absolute inset-0 animate-ping rounded-full bg-blue-400/40" />
+                          <svg
+                            className="relative h-6 w-6 animate-spin text-blue-600"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                            />
+                          </svg>
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-blue-900">
+                            Mapping in progress…
+                          </p>
+                          <p
+                            className="text-xs text-blue-800/80 truncate"
+                            title={live.mappingLabel ?? ""}
+                          >
+                            {live.active.length} active{" "}
+                            {live.active.length === 1 ? "job" : "jobs"}
+                            {live.mappingLabel
+                              ? ` · currently processing ${live.mappingLabel}`
+                              : ""}
+                          </p>
+                        </div>
+                        <div className="hidden md:grid grid-cols-4 gap-4 text-center">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-blue-500">
+                              Total
+                            </p>
+                            <p className="text-sm font-semibold text-blue-900">
+                              {total}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-emerald-500">
+                              Mapped
+                            </p>
+                            <p className="text-sm font-semibold text-emerald-700">
+                              {mapped}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-orange-500">
+                              Unclassified
+                            </p>
+                            <p className="text-sm font-semibold text-orange-700">
+                              {unclassified}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-indigo-500">
+                              Progress
+                            </p>
+                            <p className="text-sm font-semibold text-indigo-700">
+                              {pct}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-blue-100">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-400 via-indigo-500 to-blue-400 transition-all duration-500"
+                          style={{ width: `${Math.max(pct, 6)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               <section>
-                <h2 className="text-lg font-bold text-gray-900 mb-1">
-                  {t("dashboard.migrationOverview")}
-                </h2>
+                <div className="flex items-center gap-3 mb-1">
+                  <h2 className="text-lg font-bold text-gray-900">
+                    {t("dashboard.migrationOverview")}
+                  </h2>
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${
+                      live.online
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200"
+                    }`}
+                    title={
+                      live.online
+                        ? `Live · updated ${live.lastUpdated?.toLocaleTimeString() ?? ""}`
+                        : (live.error ??
+                          "Backend offline — showing sample data")
+                    }
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        live.online
+                          ? "bg-emerald-500 animate-pulse"
+                          : "bg-amber-500"
+                      }`}
+                    />
+                    {live.online ? "Live" : "Offline"}
+                  </span>
+                </div>
                 <p className="text-gray-500 text-sm mb-4">
                   {t("dashboard.realTimeStats")}
                 </p>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
                   <MetricsOverview
-                    metrics={mockMetrics}
+                    metrics={dashboardMetrics}
                     metricsByYear={mockMetricsByYear}
                     metricsByMonth={mockMetricsByMonth}
                   />
@@ -763,6 +919,107 @@ export function Dashboard({
                   onRetry={retryJob}
                 />
               </section>
+
+              {(() => {
+                const unclassifiedTotal = live.metrics?.unclassified ?? 0;
+                const unclassifiedByStudy = (live.report?.jobs ?? [])
+                  .filter((row) => row.unclassifiedDocs > 0)
+                  .map((row) => ({
+                    jobId: row.jobId,
+                    study: row.study || row.sourceName,
+                    unclassified: row.unclassifiedDocs,
+                    sourceDocs: row.sourceDocs,
+                  }))
+                  .sort((a, b) => b.unclassified - a.unclassified)
+                  .slice(0, 8);
+                return (
+                  <section>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-lg font-bold text-gray-900">
+                          Unclassified Documents
+                        </h2>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+                          {unclassifiedTotal} pending review
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setActiveItem("Unclassified Docs")}
+                        className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors"
+                      >
+                        Open Unclassified Docs →
+                      </button>
+                    </div>
+                    <div className="bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden">
+                      {unclassifiedByStudy.length === 0 ? (
+                        <div className="px-6 py-8 text-center text-sm text-gray-500">
+                          No unclassified documents. Every mapped file landed in
+                          a TMF zone.
+                        </div>
+                      ) : (
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200">
+                              <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                                Job
+                              </th>
+                              <th className="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                                Study
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">
+                                Unclassified
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">
+                                Source Docs
+                              </th>
+                              <th className="px-6 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">
+                                Share
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {unclassifiedByStudy.map((row) => {
+                              const share =
+                                row.sourceDocs > 0
+                                  ? Math.round(
+                                      (row.unclassified / row.sourceDocs) * 100,
+                                    )
+                                  : 0;
+                              return (
+                                <tr
+                                  key={row.jobId}
+                                  className="hover:bg-orange-50/40"
+                                >
+                                  <td className="px-6 py-3 font-semibold text-gray-900">
+                                    {row.jobId}
+                                  </td>
+                                  <td className="px-6 py-3 text-gray-700">
+                                    <span
+                                      className="block truncate max-w-[360px]"
+                                      title={row.study}
+                                    >
+                                      {row.study}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-3 text-right font-semibold text-orange-700">
+                                    {row.unclassified}
+                                  </td>
+                                  <td className="px-6 py-3 text-right text-gray-700">
+                                    {row.sourceDocs}
+                                  </td>
+                                  <td className="px-6 py-3 text-right text-gray-700">
+                                    {share}%
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()}
             </div>
           )}
 

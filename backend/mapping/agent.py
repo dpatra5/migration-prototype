@@ -5,11 +5,12 @@ from __future__ import annotations
 import argparse
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from .hierarchy import TMF_HIERARCHY, build_hierarchy, unclassified_folder_path
 from .mapper import (
     MappingSummary,
+    ProgressCallback,
     map_source_to_destination,
     write_mapping_log,
     write_summary_report,
@@ -34,6 +35,7 @@ def run_agent(
     source_folder: Path,
     destination_root: Path,
     overwrite_existing: bool = False,
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> MappingSummary:
     """Run the full agent: ensure hierarchy exists, then map documents."""
     source_folder = Path(source_folder)
@@ -62,6 +64,7 @@ def run_agent(
         source_folder=source_folder,
         destination_root=destination_root,
         overwrite_existing=overwrite_existing,
+        progress_callback=progress_callback,
     )
     write_mapping_log(destination_root, results)
     write_summary_report(destination_root, summary)

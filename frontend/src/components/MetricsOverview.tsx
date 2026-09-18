@@ -1,17 +1,66 @@
 import { useEffect, useMemo, useState } from "react";
 import type { MigrationMetrics } from "../types/index";
 
-const rows: { key: keyof MigrationMetrics; label: string; barColor: string; textColor: string }[] = [
-  { key: "total",        label: "Total Documents", barColor: "bg-gradient-to-t from-blue-600 to-blue-400",       textColor: "text-blue-700" },
-  { key: "success",      label: "Successful",      barColor: "bg-gradient-to-t from-emerald-600 to-emerald-400", textColor: "text-emerald-700" },
-  { key: "failed",       label: "Failed",          barColor: "bg-gradient-to-t from-rose-600 to-rose-400",       textColor: "text-rose-700" },
-  { key: "unclassified", label: "Unclassified",    barColor: "bg-gradient-to-t from-amber-600 to-amber-400",     textColor: "text-amber-700" },
+const rows: {
+  key: keyof MigrationMetrics;
+  label: string;
+  barColor: string;
+  textColor: string;
+}[] = [
+  {
+    key: "total",
+    label: "Total Documents",
+    barColor: "bg-gradient-to-t from-blue-600 to-blue-400",
+    textColor: "text-blue-700",
+  },
+  {
+    key: "success",
+    label: "Successful",
+    barColor: "bg-gradient-to-t from-emerald-600 to-emerald-400",
+    textColor: "text-emerald-700",
+  },
+  {
+    key: "failed",
+    label: "Failed",
+    barColor: "bg-gradient-to-t from-rose-600 to-rose-400",
+    textColor: "text-rose-700",
+  },
+  {
+    key: "unclassified",
+    label: "Unclassified",
+    barColor: "bg-gradient-to-t from-amber-600 to-amber-400",
+    textColor: "text-amber-700",
+  },
 ];
 
-const coverageRows: { key: keyof MigrationMetrics; label: string; iconBg: string; iconText: string; valueText: string }[] = [
-  { key: "studies",   label: "Total Studies",   iconBg: "bg-indigo-50", iconText: "text-indigo-600", valueText: "text-indigo-700" },
-  { key: "countries", label: "Total Countries", iconBg: "bg-cyan-50",   iconText: "text-cyan-600",   valueText: "text-cyan-700" },
-  { key: "sites",     label: "Total Sites",     iconBg: "bg-fuchsia-50", iconText: "text-fuchsia-600", valueText: "text-fuchsia-700" },
+const coverageRows: {
+  key: keyof MigrationMetrics;
+  label: string;
+  iconBg: string;
+  iconText: string;
+  valueText: string;
+}[] = [
+  {
+    key: "studies",
+    label: "Total Studies",
+    iconBg: "bg-indigo-50",
+    iconText: "text-indigo-600",
+    valueText: "text-indigo-700",
+  },
+  {
+    key: "countries",
+    label: "Total Countries",
+    iconBg: "bg-cyan-50",
+    iconText: "text-cyan-600",
+    valueText: "text-cyan-700",
+  },
+  {
+    key: "sites",
+    label: "Total Sites",
+    iconBg: "bg-fuchsia-50",
+    iconText: "text-fuchsia-600",
+    valueText: "text-fuchsia-700",
+  },
 ];
 
 type ViewMode = "overall" | "year" | "month";
@@ -23,16 +72,27 @@ type MetricsOverviewProps = {
   metricsByMonth: Record<string, Record<string, MigrationMetrics>>;
 };
 
-export function MetricsOverview({ metrics, metricsByYear, metricsByMonth }: MetricsOverviewProps) {
-  const years = useMemo(() => Object.keys(metricsByYear).sort(), [metricsByYear]);
+export function MetricsOverview({
+  metrics,
+  metricsByYear,
+  metricsByMonth,
+}: MetricsOverviewProps) {
+  const years = useMemo(
+    () => Object.keys(metricsByYear).sort(),
+    [metricsByYear],
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("overall");
-  const [selectedYear, setSelectedYear] = useState(years[years.length - 1] ?? "");
+  const [selectedYear, setSelectedYear] = useState(
+    years[years.length - 1] ?? "",
+  );
 
   const months = useMemo(
     () => Object.keys(metricsByMonth[selectedYear] ?? {}),
     [metricsByMonth, selectedYear],
   );
-  const [selectedMonth, setSelectedMonth] = useState(months[months.length - 1] ?? "");
+  const [selectedMonth, setSelectedMonth] = useState(
+    months[months.length - 1] ?? "",
+  );
 
   useEffect(() => {
     if (months.length > 0 && !months.includes(selectedMonth)) {
@@ -48,7 +108,11 @@ export function MetricsOverview({ metrics, metricsByYear, metricsByMonth }: Metr
         : (metricsByMonth[selectedYear]?.[selectedMonth] ?? metrics);
 
   const subtitle =
-    viewMode === "overall" ? "All-time" : viewMode === "year" ? selectedYear : `${selectedMonth} ${selectedYear}`;
+    viewMode === "overall"
+      ? "All-time"
+      : viewMode === "year"
+        ? selectedYear
+        : `${selectedMonth} ${selectedYear}`;
 
   const maxValue = Math.max(...rows.map((r) => activeMetrics[r.key]), 1);
 
@@ -62,7 +126,9 @@ export function MetricsOverview({ metrics, metricsByYear, metricsByMonth }: Metr
               type="button"
               onClick={() => setViewMode(mode)}
               className={`px-3 py-1 rounded-md text-xs font-medium capitalize transition-colors ${
-                viewMode === mode ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+                viewMode === mode
+                  ? "bg-white shadow-sm text-gray-900"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               {mode}
@@ -118,16 +184,29 @@ export function MetricsOverview({ metrics, metricsByYear, metricsByMonth }: Metr
             })}
           </div>
 
-          <div key={`${viewMode}-${selectedYear}-${selectedMonth}`} className="flex items-stretch justify-center gap-3 flex-1 mt-1">
+          <div
+            key={`${viewMode}-${selectedYear}-${selectedMonth}`}
+            className="flex items-stretch justify-center gap-3 flex-1 mt-1"
+          >
             {rows.map((r, index) => {
               const value = activeMetrics[r.key];
-              const heightPct = Math.max((value / maxValue) * 100, 4);
+              // Square-root scale so small non-zero values (e.g. 46 unclassified
+              // against 4,401 total) remain visibly distinct from a true zero.
+              const scaled =
+                value > 0 ? Math.sqrt(value) / Math.sqrt(maxValue) : 0;
+              const heightPct = value > 0 ? Math.max(scaled * 100, 8) : 2;
               return (
-                <div key={r.key} className="flex flex-col items-center flex-1 max-w-[4.5rem]">
+                <div
+                  key={r.key}
+                  className="flex flex-col items-center flex-1 max-w-[4.5rem]"
+                >
                   <div className="w-full flex-1 flex items-end justify-center">
                     <div
                       className={`w-8 rounded-t-md shadow-sm animate-bar-grow transition-transform duration-300 hover:-translate-y-1 hover:shadow-lg ${r.barColor}`}
-                      style={{ height: `${heightPct}%`, animationDelay: `${index * 80}ms` }}
+                      style={{
+                        height: `${heightPct}%`,
+                        animationDelay: `${index * 80}ms`,
+                      }}
                       title={`${r.label}: ${value.toLocaleString()}`}
                     />
                   </div>
@@ -151,8 +230,12 @@ export function MetricsOverview({ metrics, metricsByYear, metricsByMonth }: Metr
                 className={`rounded-xl border border-gray-100 ${r.iconBg} px-3 py-2 flex flex-col items-center justify-center animate-fade-in-up transition-all duration-300 hover:scale-105 hover:shadow-md`}
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                <p className={`text-xl font-bold ${r.valueText}`}>{value.toLocaleString()}</p>
-                <p className={`text-[11px] font-medium mt-0.5 ${r.iconText}`}>{r.label}</p>
+                <p className={`text-xl font-bold ${r.valueText}`}>
+                  {value.toLocaleString()}
+                </p>
+                <p className={`text-[11px] font-medium mt-0.5 ${r.iconText}`}>
+                  {r.label}
+                </p>
               </div>
             );
           })}

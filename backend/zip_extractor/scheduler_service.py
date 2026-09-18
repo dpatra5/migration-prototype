@@ -33,6 +33,7 @@ class SchedulerService:
         self.reporter = ExcelReporter(self.config.report_path, self.config.extracted_folder)
         self.transfer_reporter = TransferReporter(self.config.transfer_report_path)
         self._build_tmf_hierarchy()
+        self.job_recorder = self._build_job_recorder()
         self.watcher = FolderWatcher(
             self.config,
             self.registry,
@@ -40,9 +41,24 @@ class SchedulerService:
             self.archiver,
             self.reporter,
             self.transfer_reporter,
+            self.job_recorder,
         )
 
         self._scheduler = BlockingScheduler() if blocking else BackgroundScheduler()
+
+    def _build_job_recorder(self):
+        """Optionally attach the dashboard job recorder. Fails soft so the extractor
+        can still run stand-alone if the FastAPI app package is unavailable."""
+        try:
+            from app.job_recorder import JobRecorder
+        except Exception as exc:  # pragma: no cover - defensive
+            self._log.warning("Dashboard job recorder disabled: %s", exc)
+            return None
+        try:
+            return JobRecorder()
+        except Exception as exc:  # pragma: no cover - defensive
+            self._log.warning("Failed to initialise JobRecorder: %s", exc)
+            return None
 
     def _job(self) -> None:
         try:
