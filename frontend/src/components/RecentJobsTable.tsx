@@ -36,7 +36,7 @@ export function RecentJobsTable({
 }: {
   jobs: Job[];
   onRevoke: (jobId: string) => void;
-  onRetry: (jobId: string) => void;
+  onRetry: (job: Job) => void;
 }) {
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
 
@@ -86,9 +86,12 @@ export function RecentJobsTable({
                 if (job.status === "Running") {
                   actionLabel = "Revoke";
                   actionHandler = () => onRevoke(job.id);
+                } else if (job.status === "Pending") {
+                  actionLabel = "Revoke";
+                  actionHandler = () => onRevoke(job.id);
                 } else if (retryableStatuses.includes(job.status)) {
                   actionLabel = "Retry";
-                  actionHandler = () => onRetry(job.id);
+                  actionHandler = () => onRetry(job);
                 }
               }
 
@@ -160,32 +163,46 @@ export function RecentJobsTable({
                       {job.assignedBy}
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          actionHandler();
-                        }}
-                        className={`
-                        px-4
-                        py-2
-                        text-xs
-                        font-semibold
-                        rounded-xl
-                        transition-all
-                        duration-200
-                        shadow-sm
-                        ${
-                          actionLabel === "Revoke"
-                            ? "text-rose-600 bg-rose-50 hover:bg-rose-100"
-                            : actionLabel === "Retry"
-                              ? "text-amber-600 bg-amber-50 hover:bg-amber-100"
-                              : "text-blue-600 bg-blue-50 hover:bg-blue-100"
-                        }
-                        `}
-                      >
-                        {actionLabel}
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            actionHandler();
+                          }}
+                          className={`
+                          px-4
+                          py-2
+                          text-xs
+                          font-semibold
+                          rounded-xl
+                          transition-all
+                          duration-200
+                          shadow-sm
+                          ${
+                            actionLabel === "Revoke"
+                              ? "text-rose-600 bg-rose-50 hover:bg-rose-100"
+                              : actionLabel === "Retry"
+                                ? "text-amber-600 bg-amber-50 hover:bg-amber-100"
+                                : "text-blue-600 bg-blue-50 hover:bg-blue-100"
+                          }
+                          `}
+                        >
+                          {actionLabel}
+                        </button>
+                        {isExpanded && job.status === "Pending" && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onRetry(job);
+                            }}
+                            className="px-4 py-2 text-xs font-semibold rounded-xl transition-all duration-200 shadow-sm text-amber-600 bg-amber-50 hover:bg-amber-100"
+                          >
+                            Retry
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   {isExpanded && (

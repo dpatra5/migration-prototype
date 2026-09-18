@@ -548,17 +548,61 @@ export function Dashboard({
   );
 
   const retryJob = useCallback(
-    (jobId: string) => {
-      updateJobStatus(jobId, JobStatusValues.Running);
+    (job: Job) => {
+      if (job.status === JobStatusValues.Pending) {
+        const now = new Date();
+        updateJobStatus(job.id, JobStatusValues.Running);
+        setActiveMigrations((currentMigrations) => {
+          if (currentMigrations.some((migration) => migration.id === job.id)) {
+            return currentMigrations;
+          }
+
+          return [
+            ...currentMigrations,
+            {
+              id: job.id,
+              study: job.study,
+              masterFolder: job.study,
+              startedAt: now.getTime(),
+              phase: "running",
+            },
+          ];
+        });
+        setSelectedMigrationId(job.id);
+        updateMigrationNotification(
+          job.id,
+          "in-progress",
+          "info",
+          `Migration ${job.id} Retried`,
+          `Migration ${job.id} has been retried and is now in progress.`,
+        );
+        mainContentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      // For Partial status jobs, start new migration with circular progress
+      if (job.status === JobStatusValues.Partial) {
+        // Start the migration process with circular progress
+        startMigration({
+          study: job.study,
+          masterFolder: job.study,
+        });
+        // Scroll to top of dashboard
+        mainContentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      // For other retryable statuses (Failed), update status and retry
+      updateJobStatus(job.id, JobStatusValues.Running);
       updateMigrationNotification(
-        jobId,
+        job.id,
         "in-progress",
         "info",
-        `Migration ${jobId} Retried`,
-        `Migration ${jobId} has been retried and is now in progress.`,
+        `Migration ${job.id} Retried`,
+        `Migration ${job.id} has been retried and is now in progress.`,
       );
     },
-    [updateJobStatus, updateMigrationNotification],
+    [updateJobStatus, updateMigrationNotification, startMigration],
   );
 
   const availableMenuItems = menuItems.filter((item) =>
