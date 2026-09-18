@@ -142,6 +142,7 @@ class TransferReporter:
         started_at: str | None = None,
         mapped_count: int = 0,
         unclassified_count: int = 0,
+        job_id: str | None = None,
     ) -> str:
         src_count, src_size, _src_docs = self.zip_totals(zip_path)
         dest_count, dest_size, dest_docs = self.folder_totals(extracted_dir)
@@ -151,8 +152,10 @@ class TransferReporter:
         with self._lock:
             wb = load_workbook_with_retry(self.report_path)
             jobs = self._get_or_create_jobs_sheet(wb)
-            job_id = self._next_job_id(jobs)
-            jobs.append(
+            job_id = job_id or self._next_job_id(jobs)
+            self._write_job_row(
+                jobs,
+                job_id,
                 [
                     job_id,
                     started,
@@ -170,7 +173,7 @@ class TransferReporter:
                     notes,
                     mapped_count,
                     unclassified_count,
-                ]
+                ],
             )
             docs_sheet = self._get_or_create_docs_sheet(wb, study_name)
             for path, size in dest_docs:
@@ -197,6 +200,7 @@ class TransferReporter:
     def record_direct_transfer(
         self, source_path: Path, dest_path: Path, status: str = "TRANSFERRED", notes: str = "",
         mapped_count: int = 0, unclassified_count: int = 0,
+        job_id: str | None = None,
     ) -> str:
         try:
             src_size = source_path.stat().st_size if source_path.exists() else dest_path.stat().st_size
@@ -211,8 +215,10 @@ class TransferReporter:
         with self._lock:
             wb = load_workbook_with_retry(self.report_path)
             jobs = self._get_or_create_jobs_sheet(wb)
-            job_id = self._next_job_id(jobs)
-            jobs.append(
+            job_id = job_id or self._next_job_id(jobs)
+            self._write_job_row(
+                jobs,
+                job_id,
                 [
                     job_id,
                     finished,
@@ -230,7 +236,7 @@ class TransferReporter:
                     notes,
                     mapped_count,
                     unclassified_count,
-                ]
+                ],
             )
             docs_sheet = self._get_or_create_docs_sheet(wb, "_Direct")
             docs_sheet.append([job_id, finished, dest_path.name, dest_size, "FILE", status])
@@ -249,6 +255,7 @@ class TransferReporter:
         started_at: str | None = None,
         mapped_count: int = 0,
         unclassified_count: int = 0,
+        job_id: str | None = None,
     ) -> str:
         """Log a job for a pre-unzipped folder ingestion (no ZIP source)."""
         dest_count, dest_size, dest_docs = self.folder_totals(extracted_dir)
@@ -258,8 +265,10 @@ class TransferReporter:
         with self._lock:
             wb = load_workbook_with_retry(self.report_path)
             jobs = self._get_or_create_jobs_sheet(wb)
-            job_id = self._next_job_id(jobs)
-            jobs.append(
+            job_id = job_id or self._next_job_id(jobs)
+            self._write_job_row(
+                jobs,
+                job_id,
                 [
                     job_id,
                     started,
@@ -277,7 +286,7 @@ class TransferReporter:
                     notes,
                     mapped_count,
                     unclassified_count,
-                ]
+                ],
             )
             docs_sheet = self._get_or_create_docs_sheet(wb, study_name)
             for path, size in dest_docs:
@@ -338,8 +347,28 @@ class TransferReporter:
 
     @staticmethod
     def _next_job_id(jobs_sheet) -> str:
-        next_number = max(1, jobs_sheet.max_row)  # header counts as row 1
-        return f"J{next_number:06d}"
+        # Sequence position = current row count (header + existing job rows).
+        next_number = max(1, jobs_sheet.max_row)
+        return f"J-{next_number:03d}"
+
+    @staticmethod
+    def _find_job_row(jobs_sheet, job_id: str) -> int | None:
+        """Return the 1-based row number that already holds `job_id`, or None."""
+        for row in range(2, jobs_sheet.max_row + 1):
+            cell = jobs_sheet.cell(row=row, column=1).value
+            if cell is not None and str(cell) == job_id:
+                return row
+        return None
+
+    @staticmethod
+    def _write_job_row(jobs_sheet, job_id: str, values: list) -> None:
+        """Upsert a job row keyed by `job_id`: overwrite if it exists, else append."""
+        existing = TransferReporter._find_job_row(jobs_sheet, job_id)
+        if existing is None:
+            jobs_sheet.append(values)
+            return
+        for col_idx, value in enumerate(values, start=1):
+            jobs_sheet.cell(row=existing, column=col_idx, value=value)
 
     @staticmethod
     def _autosize(ws) -> None:

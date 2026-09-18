@@ -20,10 +20,15 @@ export interface Job {
   study: string;
   status: JobStatus;
   date: string;
+  // Full timestamp (from `Finished at` / `Started at` in transfer_report.xlsx) used only for sorting.
+  sortAt?: string;
   assignedBy: string;
   totalFiles?: number;
   successfulFiles?: number;
   failedFiles?: number;
+  unclassifiedFiles?: number;
+  mappedFiles?: number;
+  destinationFiles?: number;
 }
 
 export interface JobLog {

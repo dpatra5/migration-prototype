@@ -17,7 +17,10 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
+
+# Live progress ping signature: (total, mapped, unclassified, failed).
+ProgressCallback = Callable[[int, int, int, int], None]
 
 from .hierarchy import (
     TMF_HIERARCHY,
@@ -320,6 +323,7 @@ def map_source_to_destination(
     source_folder: Path,
     destination_root: Path,
     overwrite_existing: bool = False,
+    progress_callback: Optional[ProgressCallback] = None,
 ) -> Tuple[List[MappingResult], MappingSummary]:
     source_folder = Path(source_folder)
     destination_root = Path(destination_root)
@@ -332,12 +336,32 @@ def map_source_to_destination(
 
     files = scan_source(source_folder)
     summary.total_scanned = len(files)
+    if progress_callback is not None:
+        try:
+            progress_callback(summary.total_scanned, 0, 0, 0)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("progress_callback failed at start: %s", exc)
     if not files:
         log.warning("Source folder is empty or has no eligible files: %s", source_folder)
         return results, summary
 
     # Destination-wide content-hash index; guarantees one copy per unique content.
     hash_index: Dict[str, Path] = _index_destination_hashes(destination_root)
+
+    def _ping() -> None:
+        if progress_callback is None:
+            return
+        mapped_now = (
+            summary.by_method.get("exact_number_path", 0)
+            + summary.duplicates_skipped
+        )
+        unclass_now = summary.by_method.get("unclassified", 0)
+        try:
+            progress_callback(
+                summary.total_scanned, mapped_now, unclass_now, summary.failed
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("progress_callback failed mid-run: %s", exc)
 
     for file_path in files:
         match = _match_by_path_number(file_path, source_folder, destination_root)
@@ -361,6 +385,7 @@ def map_source_to_destination(
                 destination_path=None, match_method=method,
                 match_confidence=round(confidence, 2), status=f"failed:hash error: {exc}",
             ))
+            _ping()
             continue
 
         if src_hash in hash_index:
@@ -372,6 +397,7 @@ def map_source_to_destination(
                 destination_path=existing, match_method=method,
                 match_confidence=round(confidence, 2), status="skipped:duplicate",
             ))
+            _ping()
             continue
 
         target = _unique_destination(dest_folder, file_path.name, overwrite_existing)
@@ -398,6 +424,8 @@ def map_source_to_destination(
                 status=status,
             )
         )
+
+        _ping()
 
     return results, summary
 

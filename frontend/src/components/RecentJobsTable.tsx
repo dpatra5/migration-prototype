@@ -2,22 +2,29 @@ import { Fragment, useState } from "react";
 import type { Job, JobStatus, JobLog } from "../types/index";
 import { getJobLogs } from "../data/mockData";
 
-const logLevelStyle: Record<JobLog["level"], { color: string; label: string }> = {
-  info:  { color: "text-blue-600",    label: "INFO" },
-  warn:  { color: "text-amber-600",   label: "WARN" },
-  error: { color: "text-rose-600",    label: "ERROR" },
-};
+const logLevelStyle: Record<JobLog["level"], { color: string; label: string }> =
+  {
+    info: { color: "text-blue-600", label: "INFO" },
+    warn: { color: "text-amber-600", label: "WARN" },
+    error: { color: "text-rose-600", label: "ERROR" },
+  };
 
 function statusStyle(s: JobStatus) {
   const map: Record<JobStatus, { dot: string; bg: string; text: string }> = {
-    Done:    { dot: "bg-emerald-500", bg: "bg-emerald-50",  text: "text-emerald-700" },
-    Partial: { dot: "bg-amber-500",   bg: "bg-amber-50",   text: "text-amber-700" },
-    Running: { dot: "bg-blue-500",    bg: "bg-blue-50",    text: "text-blue-700" },
-    Pending: { dot: "bg-amber-500",   bg: "bg-amber-50",   text: "text-amber-700" },
-    Failed:  { dot: "bg-rose-500",    bg: "bg-rose-50",    text: "text-rose-700" },
-    Revoked: { dot: "bg-gray-400",    bg: "bg-gray-100",   text: "text-gray-600" },
+    Done: {
+      dot: "bg-emerald-500",
+      bg: "bg-emerald-50",
+      text: "text-emerald-700",
+    },
+    Partial: { dot: "bg-amber-500", bg: "bg-amber-50", text: "text-amber-700" },
+    Running: { dot: "bg-blue-500", bg: "bg-blue-50", text: "text-blue-700" },
+    Pending: { dot: "bg-amber-500", bg: "bg-amber-50", text: "text-amber-700" },
+    Failed: { dot: "bg-rose-500", bg: "bg-rose-50", text: "text-rose-700" },
+    Revoked: { dot: "bg-gray-400", bg: "bg-gray-100", text: "text-gray-600" },
   };
-  return map[s] ?? { dot: "bg-gray-400", bg: "bg-gray-50", text: "text-gray-600" };
+  return (
+    map[s] ?? { dot: "bg-gray-400", bg: "bg-gray-50", text: "text-gray-600" }
+  );
 }
 
 const retryableStatuses: JobStatus[] = ["Failed", "Partial"];
@@ -47,12 +54,24 @@ export function RecentJobsTable({
           </colgroup>
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-center">
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Job ID</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Study</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Status</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Date</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Assigned By</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Action</th>
+              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+                Job ID
+              </th>
+              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+                Study
+              </th>
+              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+                Status
+              </th>
+              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+                Date
+              </th>
+              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+                Assigned By
+              </th>
+              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+                Action
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -77,7 +96,12 @@ export function RecentJobsTable({
                 <Fragment key={job.id}>
                   <tr
                     onClick={toggle}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggle();
+                      }
+                    }}
                     tabIndex={0}
                     role="button"
                     aria-expanded={isExpanded}
@@ -87,34 +111,54 @@ export function RecentJobsTable({
                   >
                     <td className="px-4 py-3 font-semibold text-gray-900">
                       <span className="inline-flex items-center gap-1.5">
-                        <svg aria-hidden="true" className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        <svg
+                          aria-hidden="true"
+                          className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M9 5l7 7-7 7"
+                          />
                         </svg>
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                        <span className="font-bold text-slate-800">
-                          {job.id}
-                        </span>
-                      </div>
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          <span className="font-bold text-slate-800">
+                            {job.id}
+                          </span>
+                        </div>
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-700">{job.study}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      <span
+                        className="block truncate max-w-[220px] mx-auto"
+                        title={job.study}
+                      >
+                        {job.study}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <span
-  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${s.bg} ${s.text}`}
->
+                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${s.bg} ${s.text}`}
+                      >
                         <span
                           className={`w-2 h-2 rounded-full ${
                             job.status === "Running"
                               ? `${s.dot} animate-pulse`
                               : s.dot
                           }`}
-/>
+                        />
                         {job.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{job.date}</td>
-                    <td className="px-4 py-3 text-gray-700">{job.assignedBy}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {job.assignedBy}
+                    </td>
                     <td className="px-4 py-3">
                       <button
                         type="button"
@@ -152,9 +196,23 @@ export function RecentJobsTable({
                             const ls = logLevelStyle[log.level];
                             return (
                               <div key={i} className="flex gap-3 py-0.5">
-                                <span className="text-gray-500 flex-shrink-0">{log.timestamp}</span>
-                                <span className={`font-bold flex-shrink-0 w-12 ${ls.color}`}>[{ls.label}]</span>
-                                <span className={log.level === "error" ? "text-rose-400" : log.level === "warn" ? "text-amber-400" : "text-gray-300"}>
+                                <span className="text-gray-500 flex-shrink-0">
+                                  {log.timestamp}
+                                </span>
+                                <span
+                                  className={`font-bold flex-shrink-0 w-12 ${ls.color}`}
+                                >
+                                  [{ls.label}]
+                                </span>
+                                <span
+                                  className={
+                                    log.level === "error"
+                                      ? "text-rose-400"
+                                      : log.level === "warn"
+                                        ? "text-amber-400"
+                                        : "text-gray-300"
+                                  }
+                                >
                                   {log.message}
                                 </span>
                               </div>
@@ -173,4 +231,3 @@ export function RecentJobsTable({
     </div>
   );
 }
-
